@@ -1,0 +1,3 @@
+[submodule "data/mis-benchmark-framework"]
+	path = data/mis-benchmark-framework
+	url = https://github.com/MaxiBoether/mis-benchmark-framework.git
