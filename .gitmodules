@@ -1,3 +1,4 @@
 [submodule "data/mis-benchmark-framework"]
 	path = data/mis-benchmark-framework
-	url = https://github.com/MaxiBoether/mis-benchmark-framework.git
+	url = https://github.com/hhhhuiyuan/mis-benchmark-framework.git
+	branch = main
