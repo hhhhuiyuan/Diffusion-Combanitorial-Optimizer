@@ -35,5 +35,5 @@ python -u data/mis-benchmark-framework/generate_satlib_graph.py \
         --gen_labels \
         --label_solver kamis \
         --seed 1023 \
-        --weighted
-        
+        #--weighted
+

@@ -95,16 +95,17 @@ class TSPModel(COMetaModel):
         union_index = torch.nonzero(union_mask) 
         union_index[:, 1] += union_index[:, 0] * num_nodes
         union_index[:, 2] += union_index[:, 0] * num_nodes
-        edge_index = union_index[:, 1:].t()
+        edge_index = union_index[:, 1:].t().float().to(adj_matrix.device)
+
+        num_edge_per_graph = torch.bincount(union_index[:, 0], minlength=bs).cpu()
         
-        num_edge_per_graph = torch.tensor([sum(union_index[:, 0] == i) for i in range(bs)])
         t = torch.from_numpy(t).float()
         t = t.repeat_interleave(num_edge_per_graph)
-        
+                
         xt = xt[union_mask]
         adj_matrix = adj_matrix[union_mask]
         points = points.reshape(-1, 2)
-        #problem_size = num_nodes
+      
       else:
         edge_index = edge_index.float().to(adj_matrix.device).reshape(2, -1) 
         

@@ -4,9 +4,8 @@
 #SBATCH --time=6:00:00
 #SBATCH --gres=gpu:1
 
-#submit by $sbatch bash_scripts/mis/rwd_mis_satlib.sh
-
-#source activate Digress
+#submit by $sbatch bash_scripts/mis/mis_er.sh
+source activate Digress
 
 export PYTHONPATH="$PWD:$PYTHONPATH"
 export CUDA_VISIBLE_DEVICES=0
@@ -17,14 +16,14 @@ export CUDA_VISIBLE_DEVICES=0
 export WANDB_MODE='online'
 
 python -u difusco/train.py \
-  --task "rwd_mis" \
-  --wandb_logger_name "wmis100_rwdE_mix" \
+  --task "mis" \
+  --wandb_logger_name "wmis100_mis_baseline" \
   --project_name "RWD_MISSAT100" \
   --diffusion_type "categorical" \
   --learning_rate 0.0002 \
   --weight_decay 0.0001 \
   --lr_scheduler "cosine-decay" \
-  --storage_path "../outputs/mis_satlib/$(date +%Y-%m-%d)/$(date +%H-%M-%S)" \
+  --storage_path "../outputs/mis_er/$(date +%Y-%m-%d)/$(date +%H-%M-%S)" \
   --training_split "/data/shared/huiyuan/mis100/weighted_ER100_mixed_0.05/*gpickle" \
   --validation_split "/data/shared/huiyuan/mis100/weighted_ER100_test/*gpickle" \
   --test_split "/data/shared/huiyuan/mis100/weighted_ER100_test/*gpickle" \
@@ -36,6 +35,6 @@ python -u difusco/train.py \
   --do_train \
   --do_val \
   --weighted \
-  --XE_rwd_cond E\
   #--debug \
+  #--use_activation_checkpoint \
   #--do_test \
