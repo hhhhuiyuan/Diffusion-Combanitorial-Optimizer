@@ -46,7 +46,7 @@ class MISModel(COMetaModel):
 
   def categorical_training_step(self, batch, batch_idx):
     if not self.args.weighted:
-      _, graph_data, point_indicator, _ = batch
+      _, graph_data, point_indicator, obj = batch
     else:
       _, graph_data, weights, point_indicator, _ = batch
     

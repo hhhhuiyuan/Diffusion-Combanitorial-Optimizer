@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --output=slurm/main_%j.out
 #SBATCH --nodes=1
-#SBATCH --time=10:00:00
+#SBATCH --time=30:00:00
 #SBATCH --gres=gpu:4
 
 #submit by $sbatch bash_scripts/mis700-800/mis_er700.sh

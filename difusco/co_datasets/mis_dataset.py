@@ -22,13 +22,18 @@ class MISDataset(torch.utils.data.Dataset):
     return len(self.file_lines)
 
   def get_example(self, idx):
+    nonopt_flag = 'non-optimal' in self.file_lines[idx]
+  
     with open(self.file_lines[idx], "rb") as f:
       graph = pickle.load(f)
 
     num_nodes = graph.number_of_nodes()
 
     if self.data_label_dir is None:
-      node_labels = [_[1] for _ in graph.nodes(data='label')]
+      if nonopt_flag:
+        node_labels = [_[1] for _ in graph.nodes(data='nonoptimal_label')]  
+      else:
+        node_labels = [_[1] for _ in graph.nodes(data='label')]
       if node_labels is not None and node_labels[0] is not None:
         node_labels = np.array(node_labels, dtype=np.int64)
       else:
@@ -76,17 +81,22 @@ class Rwd_MISDataset(torch.utils.data.Dataset):
     return len(self.file_lines)
 
   def get_example(self, idx):
+    nonopt_flag = 'non-optimal' in self.file_lines[idx]
     with open(self.file_lines[idx], "rb") as f:
       graph = pickle.load(f)
 
     num_nodes = graph.number_of_nodes()
 
     if self.data_label_dir is None:
-      node_labels = [_[1] for _ in graph.nodes(data='label')]
+      if nonopt_flag:
+        node_labels = [_[1] for _ in graph.nodes(data='nonoptimal_label')] 
+      else:
+        node_labels = [_[1] for _ in graph.nodes(data='label')]
       if node_labels is not None and node_labels[0] is not None:
         node_labels = np.array(node_labels, dtype=np.int64)
       else:
         node_labels = np.zeros(num_nodes, dtype=np.int64)
+
     # else:
     #   base_label_file = os.path.basename(self.file_lines[idx]).replace('.gpickle', '_unweighted.result')
     #   node_label_file = os.path.join(self.data_label_dir, base_label_file)
@@ -95,12 +105,12 @@ class Rwd_MISDataset(torch.utils.data.Dataset):
     #   node_labels = np.array(node_labels, dtype=np.int64)
     #   assert node_labels.shape[0] == num_nodes
 
-    if self.subopt_flag:
-      suboptimal_rate = np.random.uniform(0.2, 0.5)
-      sample_size = int(suboptimal_rate * np.sum(node_labels == 1))
-      indices_of_ones = np.where(node_labels == 1)[0]
-      sampled_indices = np.random.choice(indices_of_ones, size=sample_size, replace=False)
-      node_labels[sampled_indices] = 0
+    # if self.subopt_flag:
+    #   suboptimal_rate = np.random.uniform(0.2, 0.5)
+    #   sample_size = int(suboptimal_rate * np.sum(node_labels == 1))
+    #   indices_of_ones = np.where(node_labels == 1)[0]
+    #   sampled_indices = np.random.choice(indices_of_ones, size=sample_size, replace=False)
+    #   node_labels[sampled_indices] = 0
 
     edges = np.array(graph.edges, dtype=np.int64)
     edges = np.concatenate([edges, edges[:, ::-1]], axis=0)
