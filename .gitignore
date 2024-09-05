@@ -3,3 +3,5 @@ probelms/*
 data/tgl/*
 data/attention-learn-to-route/*
 env.yml
+bash_scripts/*
+.pyc
