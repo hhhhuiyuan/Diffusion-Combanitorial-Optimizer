@@ -71,7 +71,11 @@ class Rwd_MISModel(COMetaModel):
       mis_obj = obj.view(-1)
       mis_obj = mis_obj.repeat_interleave(point_indicator.reshape(-1), dim=0)
       mis_obj = mis_obj.view(-1, 1)
-  
+    
+    if self.guidance:
+      rwd_mask = torch.bernoulli(0.1 * torch.ones_like(mis_obj).to(node_labels.device))
+      mis_obj = torch.cat((mis_obj, rwd_mask), dim=1)
+    
     # Sample from diffusion
     node_labels_onehot = F.one_hot(node_labels.long(), num_classes=2).float()
     node_labels_onehot = node_labels_onehot.unsqueeze(1).unsqueeze(1)
@@ -165,13 +169,39 @@ class Rwd_MISModel(COMetaModel):
   def categorical_denoise_step(self, xt, t, device, reward, edge_index=None, target_t=None):
     with torch.no_grad():
       t = torch.from_numpy(t).view(1)
-      x0_pred = self.forward(
-          xt.float().to(device),
-          t.float().to(device),
-          reward.float().to(device),
-          edge_index.long().to(device) if edge_index is not None else None,
-      )
-      x0_pred_prob = x0_pred.reshape((1, xt.shape[0], -1, 2)).softmax(dim=-1)
+      
+      if self.guidance:
+        rwd_mask = torch.ones_like(reward).to(device)
+        cond_rwd = torch.cat((reward, rwd_mask), dim=1)
+        x0_pred_cond = self.forward(
+            xt.float().to(device),
+            t.float().to(device),
+            cond_rwd.float().to(device),
+            edge_index.long().to(device) if edge_index is not None else None,
+        )
+        rwd_mask = torch.zeros_like(reward).to(device)
+        uncond_rwd = torch.cat((reward, rwd_mask), dim=1)
+        x0_pred_uncond = self.forward(
+            xt.float().to(device),
+            t.float().to(device),
+            uncond_rwd.float().to(device),
+            edge_index.long().to(device) if edge_index is not None else None,
+        )
+
+        x0_pred_prob_cond = x0_pred_cond.reshape((1, xt.shape[0], -1, 2)).softmax(dim=-1)
+        x0_pred_prob_uncond = x0_pred_uncond.reshape((1, xt.shape[0], -1, 2)).softmax(dim=-1)
+        x0_pred_prob = x0_pred_prob_cond * (x0_pred_prob_cond/x0_pred_prob_uncond) ** self.args.guidance
+        x0_pred_prob = x0_pred_prob/x0_pred_prob.sum(dim=-1, keepdim=True)
+      
+      else:
+        x0_pred = self.forward(
+            xt.float().to(device),
+            t.float().to(device),
+            reward.float().to(device),
+            edge_index.long().to(device) if edge_index is not None else None,
+        )
+        x0_pred_prob = x0_pred.reshape((1, xt.shape[0], -1, 2)).softmax(dim=-1)
+      
       if self.args.weighted:
         xt = xt[:, 1]
       xt = self.categorical_posterior(target_t, t, x0_pred_prob, xt)

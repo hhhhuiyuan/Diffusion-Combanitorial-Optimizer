@@ -24,44 +24,44 @@ if __name__ == "__main__":
     os.makedirs(opts.new_file, exist_ok=True)
 
     if opts.task == "mis":
-        subopt_file_lines = glob.glob(opts.subopt_file)
+        subopt_file_lines = sorted(glob.glob(opts.subopt_file))
         print(len(subopt_file_lines))
-        opt_file_lines = glob.glob(opts.opt_file)
+        opt_file_lines = sorted(glob.glob(opts.opt_file))
         print(len(opt_file_lines))
         subopt_gap = []
         mixed_lines = []
 
         for subopt_data, opt_data in zip(subopt_file_lines, opt_file_lines):
-            # # now the problem graph in opt and subopt datasets are not the same
-            # with open(subopt_data, "rb") as f:
-            #     subopt_graph = pickle.load(f)
-            # with open(opt_data, "rb") as f:    
-            #     opt_graph = pickle.load(f)
+            # now the problem graph in opt and subopt datasets are not the same
+            with open(subopt_data, "rb") as f:
+                subopt_graph = pickle.load(f)
+            with open(opt_data, "rb") as f:    
+                opt_graph = pickle.load(f)
 
-            # num_nodes_subopt = subopt_graph.number_of_nodes()
-            # num_nodes_opt = opt_graph.number_of_nodes()
+            num_nodes_subopt = subopt_graph.number_of_nodes()
+            num_nodes_opt = opt_graph.number_of_nodes()
 
-            # if not num_nodes_subopt == num_nodes_opt:
-            #     print("nodes check failed")
-            #     continue
+            if not num_nodes_subopt == num_nodes_opt:
+                print("nodes check failed")
+                continue
 
-            # edges_subopt = np.array(subopt_graph.edges, dtype=np.int64)
-            # edges_opt = np.array(opt_graph.edges, dtype=np.int64)
+            edges_subopt = np.array(subopt_graph.edges, dtype=np.int64)
+            edges_opt = np.array(opt_graph.edges, dtype=np.int64)
             
-            # # print(edges_subopt)
-            # # print(edges_opt)
-            # if not (edges_subopt == edges_opt).all():
-            #     print("edges check failed")
-            #     continue
+            # print(edges_subopt)
+            # print(edges_opt)
+            if not (edges_subopt == edges_opt).all():
+                print("edges check failed")
+                continue
 
-            # weights_subopt = nx.get_node_attributes(subopt_graph, 'weight')
-            # weights_opt = nx.get_node_attributes(opt_graph, 'weight')
+            weights_subopt = nx.get_node_attributes(subopt_graph, 'weight')
+            weights_opt = nx.get_node_attributes(opt_graph, 'weight')
             
             # print(weights_subopt)
             # print(weights_opt)
-            # if not weights_subopt == weights_opt:
-            #     print("weights check failed")
-            #     continue
+            if not weights_subopt == weights_opt:
+                print("weights check failed")
+                continue
             
             choice = np.random.binomial(1, opts.ratio)
             if choice:

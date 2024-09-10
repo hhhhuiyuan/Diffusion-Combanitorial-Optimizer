@@ -581,12 +581,13 @@ class CondGNNEncoder(nn.Module):
   def __init__(self, n_layers, hidden_dim, out_channels=1, aggregation="sum", norm="layer",
                learn_norm=True, track_norm=False, gated=True,
                sparse=False, use_activation_checkpoint=False, node_feature_only=False,
-               separate_rwd_emb=False, XE_rwd_cond = False, *args, **kwargs):
+               separate_rwd_emb=False, XE_rwd_cond = False, guidance = 0, *args, **kwargs):
     super().__init__()
     self.sparse = sparse
     self.node_feature_only = node_feature_only
     self.separate_rwd_emb = separate_rwd_emb
     self.XE_rwd_cond = XE_rwd_cond
+    self.classifier_free_guidance = guidance
     
     self.hidden_dim = hidden_dim
     time_embed_dim = hidden_dim // 2
@@ -790,7 +791,13 @@ class CondGNNEncoder(nn.Module):
     x_shape = x.shape
     e = torch.zeros(edge_index.size(1), self.hidden_dim, device=x.device)
     time_emb = self.time_embed(timestep_embedding(timesteps, self.hidden_dim))
-    reward_emb = self.reward_embed(rewards)
+    if self.classifier_free_guidance:
+      rwd_mask = rewards[:, 1].view(-1,1)
+      rewards = rewards[:, 0].view(-1,1)
+      reward_emb = self.reward_embed(rewards)
+      reward_emb = reward_emb * (1 - rwd_mask)
+    else:
+      reward_emb = self.reward_embed(rewards)
     edge_index = edge_index.long()
     
     x, e = self.sparse_encoding(x, e, edge_index, time_emb, reward_emb, node_count=node_count, edge_count=edge_count)
@@ -798,7 +805,7 @@ class CondGNNEncoder(nn.Module):
     x = self.out(x).reshape(-1, x_shape[0]).permute((1, 0))
     return x
 
-  def sparse_encoding(self, x, e, edge_index, time_emb, reward_emb, node_count=None, edge_count=None):
+  def sparse_encoding(self, x, e, edge_index, time_emb, reward_emb=None, node_count=None, edge_count=None):
     adj_matrix = SparseTensor(
         row=edge_index[0],
         col=edge_index[1],
@@ -807,58 +814,39 @@ class CondGNNEncoder(nn.Module):
     )
     adj_matrix = adj_matrix.to(x.device)
 
-    if not self.separate_rwd_emb:
-      for layer, time_layer, reward_layer, out_layer in zip(self.layers, self.time_embed_layers, self.reward_embed_layers, self.per_layer_out):
-        x_in, e_in = x, e
+    for layer, time_layer, reward_layer, out_layer in zip(self.layers, self.time_embed_layers, self.reward_embed_layers, self.per_layer_out):
+      x_in, e_in = x, e
 
-        if self.use_activation_checkpoint:
-          raise NotImplementedError
-        else:
-          x, e = layer(x_in, e_in, adj_matrix, mode="direct", edge_index=edge_index, sparse=True)
+      if self.use_activation_checkpoint:
+        raise NotImplementedError
+      else:
+        x, e = layer(x_in, e_in, adj_matrix, mode="direct", edge_index=edge_index, sparse=True)
 
-          #apply time and reward conditioning
-          if self.XE_rwd_cond == 'E':
-            e = e + reward_layer(reward_emb) + time_layer(time_emb)
-          elif self.XE_rwd_cond == 'X':
-            x = x + reward_layer(reward_emb) + time_layer(time_emb)
-          elif self.XE_rwd_cond == 'XE':
-            reward_output = reward_layer(reward_emb)
-            time_output = time_layer(time_emb)
-            x = x + reward_output + time_output
+        #apply time and reward conditioning
+        if self.XE_rwd_cond == 'E':
+          e = e + reward_layer(reward_emb) + time_layer(time_emb)
+        elif self.XE_rwd_cond == 'X':
+          x = x + reward_layer(reward_emb) + time_layer(time_emb)
+        elif self.XE_rwd_cond == 'XE':
+          reward_output = reward_layer(reward_emb)
+          time_output = time_layer(time_emb)
+          x = x + reward_output + time_output
+          
+          if not time_output.shape[0]==1:
+            bs = time_output.shape[0] // node_count
+            picked_idx = [i * node_count for i in range(bs)]
             
-            if not reward_output.shape[0]==1:
-              bs = reward_output.shape[0] // node_count
-              picked_idx = [i * node_count for i in range(bs)]
-              
-              reward_output = reward_output[picked_idx , :]
-              reward_output = reward_output.repeat_interleave(edge_count, dim=0)
+            reward_output = reward_output[picked_idx , :]
+            reward_output = reward_output.repeat_interleave(edge_count, dim=0)
 
-              time_output = time_output[picked_idx , :]
-              time_output = time_output.repeat_interleave(edge_count, dim=0)
-            
-            e = e + reward_output + time_output
-            
-          x = x_in + x
-          e = e_in + out_layer(e)
-      return x, e
-    
-    # else:
-    #   for layer, time_layer, out_layer in zip(self.layers, self.time_embed_layers, self.per_layer_out):
-    #     x_in, e_in = x, e
-
-    #     if self.use_activation_checkpoint:
-    #       raise NotImplementedError
-    #     else:
-    #       x, e = layer(x_in, e_in, adj_matrix, mode="direct", edge_index=edge_index, sparse=True)
-    #       x = x + time_layer(time_emb)
-    #       x = x_in + out_layer(x)
-    #       e = e_in + e
-      
-    #   for layer in self.reward_embed_layers:
-    #     reward_emb = layer(reward_emb)
-  
-    #   x = x + reward_emb
-    #   return x, e
+            time_output = time_output[picked_idx , :]
+            time_output = time_output.repeat_interleave(edge_count, dim=0)
+          
+          e = e + reward_output + time_output if reward_emb is not None else e + time_output
+          
+        x = x_in + x
+        e = e_in + out_layer(e)
+    return x, e
 
   def forward(self, x, timesteps, rewards, graph=None, edge_index=None, node_count=None, edge_count=None):
     if self.node_feature_only:

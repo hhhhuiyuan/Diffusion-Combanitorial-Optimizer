@@ -4,12 +4,13 @@
 # N=63
 
 # # Submit the first 3 jobs without dependencies
-# for ((i=24;i<=26;i++)); do
+# for ((i=1;i<=N;i++)); do
 #     echo "Submitting batch $i"
 #     jobid=$(sbatch --parsable --export=ALL,SEED=$i bash_scripts/data/mis/mis_ER_graph.sh)
 #     jobids[i]=$jobid
 # done
 
+# # for gurobi
 # # Submit the remaining jobs with dependencies
 # for ((i=27;i<=N;i++)); do
 #     echo "Submitting batch $i"
@@ -20,19 +21,19 @@
 # done
 
 # Set the output file
-new_dir="/data/shared/huiyuan/mis700-800/ER_gurobi_train"
+new_dir="../data/shared/huiyuan/mis700-800/ER_kamis_train"
 
 # Loop over the file range
-for ((i=1262;i<=1263;i++)); do
+for ((i=1234;i<=1297;i++)); do
     # Set the directory based on the index
-    dir="/data/shared/huiyuan/mis700-800/ER_gurobi_train_${i}"
+    dir="../data/shared/huiyuan/mis700-800/ER_kamis_train_${i}"
 
     # Check if the number of files is less than 2560
     num_files=$(ls -l "$dir"/*.gpickle | wc -l)
 
     echo "Number of files in $dir: $num_files"
 
-    if (( num_files < 2560 )); then
+    if (( num_files != 2560 )); then
         echo "Skipping directory $dir due to insufficient number of files"
         continue
     fi

@@ -75,9 +75,6 @@ class AddEdge_DAGModel(COMetaModel):
         xt.float().to(device),
     )
     
-    # Compute loss
-    #import pdb; pdb.set_trace()
-    
     num_nodes = order_mats.shape[1]
     num_add_edges = order_mats[0].sum()
 
@@ -132,52 +129,33 @@ class AddEdge_DAGModel(COMetaModel):
   def test_greedy_decoding(self, batch, batch_idx, split='test'):
     device = batch[-1].device
     _, job_nodes, dep_adj_mats, orders, makespans, schdulers = batch
-    #stacked_solutions = []
+    
+    #extract the problem graph for evaluation
+    np_job_nodes = job_nodes.cpu().numpy()
+    np_dep_adj = dep_adj_mats.cpu().numpy()
+    schduler = schdulers.cpu().tolist() 
+    np_ref_order = orders.cpu().numpy()
+
+    slu_cost_dict = {}
+    opt_gap_dict = {}
     
     if self.args.dag_target_factor:
-  
       # tuning parameter target, set to be self.args.dag_target_factor * heuristic makespan
-      target_factors = makespans * torch.tensor(self.args.dag_target_factor).float().tolist()
-      #target = makespans * torch.tensor(self.args.dag_target_factor).float()
-      xt = torch.randn_like(dep_adj_mats.float())
-
-      if self.diffusion_type == 'gaussian':
-        xt.requires_grad = True
-      else:
-        xt = (xt > 0).float()
-
-      steps = self.args.inference_diffusion_steps
-      time_schedule = InferenceSchedule(inference_schedule=self.args.inference_schedule,
-                                        T=self.diffusion.T, inference_T=steps)
-      dep_edge_mask = (dep_adj_mats == 1)
-
-      # Diffusion iterations
-      for i in range(steps):
-        t1, t2 = time_schedule(i)
-        t1 = np.array([t1]).astype(int)
-        t2 = np.array([t2]).astype(int)
-
-        #xt = xt + 0.005 * (2 * torch.rand_like(xt) - 1)
-        xt = self.categorical_denoise_step(job_nodes, xt, t1, target_factors[0].view(1, 1), device, target_t=t2, dep_mask=dep_edge_mask)
-    
+      target_factors = [self.args.dag_target_factor]   
     else:
       # search tuning parameter target from 0.1-0.8 incremented by 0.1
-      target_factors = [round(0.1 * float(i), 2) for i in range(1, 10)]
-      target = makespans * torch.tensor(target_factors).float().view(-1, 1).to(device)
+      target_factors = [round(0.1 * float(i), 2) for i in range(6, 10, 1)]
+        
+    for target_fac in target_factors:
+      target = torch.ones_like(makespans) * torch.tensor(target_fac).float().to(device)
+          
+      xt = torch.randn_like(dep_adj_mats.float())
       
-      self.args.parallel_sampling = len(target_factors)
-      if self.args.parallel_sampling > 1:
-        job_nodes = job_nodes.repeat(self.args.parallel_sampling, 1, 1)
-        xt = torch.randn_like(dep_adj_mats.float())
-        xt = xt.repeat(self.args.parallel_sampling, 1, 1)
-        xt = torch.randn_like(xt)    
-        dep_adj_mats = dep_adj_mats.repeat(self.args.parallel_sampling, 1, 1)
-
       if self.diffusion_type == 'gaussian':
         xt.requires_grad = True
       else:
         xt = (xt > 0).float()
-      
+
       steps = self.args.inference_diffusion_steps
       time_schedule = InferenceSchedule(inference_schedule=self.args.inference_schedule,
                                         T=self.diffusion.T, inference_T=steps)
@@ -188,34 +166,19 @@ class AddEdge_DAGModel(COMetaModel):
         t1, t2 = time_schedule(i)
         t1 = np.array([t1]).astype(int)
         t2 = np.array([t2]).astype(int)
-
         #xt = xt + 0.005 * (2 * torch.rand_like(xt) - 1)
         xt = self.categorical_denoise_step(job_nodes, xt, t1, target, device, target_t=t2, dep_mask=dep_edge_mask)
 
-    if self.diffusion_type == 'gaussian':
-      slu_adj_mat = xt.cpu().detach().numpy() * 0.5 + 0.5
-    else:
-      slu_adj_mat = xt.float().cpu().detach().numpy() + 1e-6
-
-    #extract the problem graph for evaluation
-    np_job_nodes = job_nodes.cpu().numpy()[0]
-    np_dep_adj = dep_adj_mats.cpu().numpy()[0]
-      
-    schduler = schdulers.cpu()[0].tolist() 
-    np_ref_order = orders.cpu().numpy()[0]
-
-    # greedy sampling by adding edge to an empty graph until a tour is formed
-    # for now, batched decoding is not supported
-    slu_cost_dict = {}
-    opt_gap_dict = {}
-      
-    for i, target in enumerate(target_factors):
-      slu_mat = slu_adj_mat[i]
-      slu_order, slu_cost, ref_cost = self.dag_eval.decode_greedy(np_job_nodes, np_dep_adj, slu_mat, schduler, self.args.dag_decode_factor)
-      slu_cost_dict[target] = slu_cost  
-      opt_gap_dict[target] = slu_cost - ref_cost
-      #stacked_solutions.append(slu_mat)
-
+      if self.diffusion_type == 'gaussian':
+        slu_adj_mat = xt.cpu().detach().numpy() * 0.5 + 0.5
+      else:
+        slu_adj_mat = xt.float().cpu().detach().numpy() + 1e-6  
+    
+      slu_mat = slu_adj_mat
+      all_slu_order, slu_cost, ref_cost = self.dag_eval.batch_decode_greedy(np_job_nodes, np_dep_adj, slu_mat, schduler, self.args.dag_decode_factor)
+      slu_cost_dict[target_fac] = slu_cost  
+      opt_gap_dict[target_fac] = slu_cost - ref_cost 
+    
     metrics = {
             f"{split}/ref_cost": ref_cost,
             f"{split}/solved_cost": slu_cost_dict,

@@ -98,6 +98,8 @@ def arg_parser():
   parser.add_argument('--query_factor', type=int, default=1, help='number of extra queris in training is query_factor*number_of_nodes')
   parser.add_argument('--tsp_size', type=int, default=None)
   parser.add_argument('--XE_rwd_cond', type=str, choices=['X', 'E', 'XE'], default='E')
+  parser.add_argument('--guidance', type=float, default=0.15, help='strength of classifier free guidance, 0 if no guidance')
+
     
   args = parser.parse_args()
   return args
@@ -151,11 +153,13 @@ def main(args):
 
   model = model_class(param_args=args)
 
+  wandb_path = os.path.join(args.storage_path, f'models')
+  os.makedirs(wandb_path, exist_ok=True)
   wandb_id = os.getenv("WANDB_RUN_ID") or wandb.util.generate_id()
   wandb_logger = WandbLogger(
       name=args.wandb_logger_name,
       project=project_name,
-      save_dir=os.path.join(args.storage_path, f'models'),
+      save_dir=wandb_path,
       id=args.resume_id or wandb_id,
   )
   rank_zero_info(f"Logging to {wandb_logger.save_dir}/{wandb_logger.name}/{wandb_logger.version}")

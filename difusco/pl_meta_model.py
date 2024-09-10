@@ -12,7 +12,7 @@ from torch_geometric.loader import DataLoader as GraphDataLoader
 from pytorch_lightning.utilities import rank_zero_info
 
 from models.gnn_encoder import GNNEncoder, CondGNNEncoder, DAGCondGNNEncoder
-from models.graph_transformer import GraphTransformer
+#from models.graph_transformer import GraphTransformer
 from utils.lr_schedulers import get_schedule_fn
 from utils.diffusion_schedulers import CategoricalDiffusion, GaussianDiffusion
   
@@ -27,6 +27,7 @@ class COMetaModel(pl.LightningModule):
     self.diffusion_schedule = self.args.diffusion_schedule
     self.diffusion_steps = self.args.diffusion_steps
     self.XE_rwd_cond = self.args.XE_rwd_cond
+    self.guidance = self.args.guidance
     
     if self.args.task == 'rwd_flp':
       self.sparse = self.args.flp_sparse
@@ -88,7 +89,8 @@ class COMetaModel(pl.LightningModule):
         use_activation_checkpoint=self.args.use_activation_checkpoint,
         node_feature_only=node_feature_only,
         separate_rwd_emb = self.args.separate_rwd_emb,
-        XE_rwd_cond = self.XE_rwd_cond
+        XE_rwd_cond = self.XE_rwd_cond,
+        guidance = self.guidance
       )
       
     else:
@@ -276,7 +278,7 @@ class COMetaModel(pl.LightningModule):
     return test_dataloader
 
   def val_dataloader(self):
-    if 'vrp' in self.args.task:
+    if 'vrp' in self.args.task or 'dag' in self.args.task:
       batch_size = self.args.batch_size
     else:
       batch_size = 1

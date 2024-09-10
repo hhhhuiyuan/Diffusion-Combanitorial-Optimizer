@@ -5,3 +5,4 @@ data/attention-learn-to-route/*
 env.yml
 bash_scripts/*
 .pyc
+difusco/utils/__pycache__

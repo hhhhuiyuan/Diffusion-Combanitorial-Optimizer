@@ -1,5 +1,5 @@
 # in your data dir, 
-# run $bash /data/home/huiyuan23/DIFUSCO/bash_scripts/data/mis/download_satlib.sh
+# run $bash bash_scripts/data/mis/download_satlib.sh
 
 # DOWNLOAD SATLIB
 # Define the arrays with the different values for k, n, and m
@@ -8,7 +8,7 @@ b_values=("b10" "b30" "b50" "b70" "b90")
 
 # Base URL
 base_url="https://www.cs.ubc.ca/~hoos/SATLIB/Benchmarks/SAT/CBS"
-current_dir=$(pwd)
+current_dir="../data/shared/huiyuan/mis/mis_satlib"
 
 # Loop over the values of k, n, and m
 for m in "${m_values[@]}"; do

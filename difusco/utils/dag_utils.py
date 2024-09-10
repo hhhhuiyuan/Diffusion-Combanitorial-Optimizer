@@ -174,6 +174,20 @@ class DAG_Evaluator(object):
         makespan = self.evaluate(nodes, dep_mat, order)
         return order, makespan, ref_cost
     
+    def batch_decode_greedy(self, nodes_batach, dep_mat_batch, slu_mat_batch, scheduler_batch, decode_factor):
+        all_order = []
+        all_makespan = []
+        all_ref_cost = []
+        bs = nodes_batach.shape[0]
+        for i in range(bs):
+            order, makespan, ref_cost = self.decode_greedy(nodes_batach[i], dep_mat_batch[i], slu_mat_batch[i], scheduler_batch[i], decode_factor)
+            all_order.append(order)
+            all_makespan.append(makespan)
+            all_ref_cost.append(ref_cost)
+        makespan = sum(all_makespan) / bs
+        ref_cost = sum(all_ref_cost) / bs
+        return all_order, makespan, ref_cost
+    
 class DAGraph(object):
     def __init__(self, resource_dim, feature_dim, scheduler_type='sjf'):
         self.feature_dim = feature_dim
