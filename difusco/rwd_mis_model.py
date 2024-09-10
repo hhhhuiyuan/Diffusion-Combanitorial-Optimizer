@@ -169,7 +169,7 @@ class Rwd_MISModel(COMetaModel):
   def categorical_denoise_step(self, xt, t, device, reward, edge_index=None, target_t=None):
     with torch.no_grad():
       t = torch.from_numpy(t).view(1)
-      
+    
       if self.guidance:
         rwd_mask = torch.ones_like(reward).to(device)
         cond_rwd = torch.cat((reward, rwd_mask), dim=1)

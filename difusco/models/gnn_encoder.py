@@ -9,6 +9,7 @@ from models.nn import (
     zero_module,
     normalization,
     timestep_embedding,
+    reward_embedding,
 )
 from torch_sparse import SparseTensor
 from torch_sparse import sum as sparse_sum
@@ -611,7 +612,7 @@ class CondGNNEncoder(nn.Module):
     
     #add reward embedding
     self.reward_embed = nn.Sequential(
-        linear(1, reward_embed_dim),
+        linear(hidden_dim, reward_embed_dim),
         nn.ReLU(),
         linear(reward_embed_dim, reward_embed_dim),
     )
@@ -792,12 +793,14 @@ class CondGNNEncoder(nn.Module):
     e = torch.zeros(edge_index.size(1), self.hidden_dim, device=x.device)
     time_emb = self.time_embed(timestep_embedding(timesteps, self.hidden_dim))
     if self.classifier_free_guidance:
-      rwd_mask = rewards[:, 1].view(-1,1)
-      rewards = rewards[:, 0].view(-1,1)
+      rwd_mask = rewards[:, 1]
+      rewards = rewards[:, 0]
       reward_emb = self.reward_embed(rewards)
       reward_emb = reward_emb * (1 - rwd_mask)
     else:
-      reward_emb = self.reward_embed(rewards)
+      rewards = rewards.view(-1)
+      reward_emb = self.reward_embed(reward_embedding(rewards, self.hidden_dim))
+      #reward_emb = self.reward_embed(rewards)
     edge_index = edge_index.long()
     
     x, e = self.sparse_encoding(x, e, edge_index, time_emb, reward_emb, node_count=node_count, edge_count=edge_count)
