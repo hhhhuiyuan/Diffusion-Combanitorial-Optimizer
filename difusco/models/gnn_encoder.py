@@ -793,9 +793,9 @@ class CondGNNEncoder(nn.Module):
     e = torch.zeros(edge_index.size(1), self.hidden_dim, device=x.device)
     time_emb = self.time_embed(timestep_embedding(timesteps, self.hidden_dim))
     if self.classifier_free_guidance:
-      rwd_mask = rewards[:, 1]
+      rwd_mask = rewards[:, 1].view(-1,1)
       rewards = rewards[:, 0]
-      reward_emb = self.reward_embed(rewards)
+      reward_emb = self.reward_embed(reward_embedding(rewards, self.hidden_dim))
       reward_emb = reward_emb * (1 - rwd_mask)
     else:
       rewards = rewards.view(-1)

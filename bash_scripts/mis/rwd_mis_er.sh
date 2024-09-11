@@ -21,7 +21,7 @@ export WANDB_MODE='offline'
 
 python -u difusco/train.py \
   --task "rwd_mis" \
-  --wandb_logger_name "wmis100_rwd_guidance0.80" \
+  --wandb_logger_name "wmis100_rwd_guidance0.0001" \
   --project_name "RWD_MIS_ER100_0.15" \
   --diffusion_type "categorical" \
   --learning_rate 0.0002 \
@@ -40,6 +40,6 @@ python -u difusco/train.py \
   --do_val \
   --weighted \
   --XE_rwd_cond E\
-  --guidance 0.80\
+  --guidance 0.0001\
   #--debug \
   #--do_test \
