@@ -19,11 +19,12 @@ from functools import partial
 
 def solve_tsp_heuristic(nodes_coord, nearopt_flag = False):
     edge_matrix = cdist(nodes_coord, nodes_coord, 'euclidean')
-    available_solvers = ['nn','furthest', 'lkh-fast']
+    available_solvers = ['furthest']
+                         #'nn', 'lkh-fast']
     key = random.choice(available_solvers)
     
-    if nearopt_flag and key != 'lkh-fast':
-        return
+    # if nearopt_flag and key != 'lkh-fast':
+    #     return
         
     heuristic_tours, heuristic_costs = solve_w_heuristics(get_lower_adj_matrix(edge_matrix), key)  
     tour = heuristic_tours[key][1:]
@@ -34,8 +35,8 @@ def solve_tsp_heuristic(nodes_coord, nearopt_flag = False):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--min_nodes", type=int, default=20)
-    parser.add_argument("--max_nodes", type=int, default=20)
+    parser.add_argument("--min_nodes", type=int, default=100)
+    parser.add_argument("--max_nodes", type=int, default=100)
     parser.add_argument("--num_samples", type=int, default=76800)
     parser.add_argument("--batch_size", type=int, default=128)
     parser.add_argument("--filename", type=str, default=None)

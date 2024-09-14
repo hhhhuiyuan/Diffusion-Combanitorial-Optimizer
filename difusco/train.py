@@ -98,7 +98,7 @@ def arg_parser():
   parser.add_argument('--query_factor', type=int, default=1, help='number of extra queris in training is query_factor*number_of_nodes')
   parser.add_argument('--tsp_size', type=int, default=None)
   parser.add_argument('--XE_rwd_cond', type=str, choices=['X', 'E', 'XE'], default='E')
-  parser.add_argument('--guidance', type=float, default=0.15, help='strength of classifier free guidance, 0 if no guidance')
+  parser.add_argument('--guidance', type=float, default=0, help='strength of classifier free guidance, 0 if no guidance')
 
     
   args = parser.parse_args()

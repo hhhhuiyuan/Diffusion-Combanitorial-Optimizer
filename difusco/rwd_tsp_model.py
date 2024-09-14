@@ -9,7 +9,7 @@ import torch.utils.data
 from pytorch_lightning.utilities import rank_zero_info
 from concorde.tsp import TSPSolver
 
-from co_datasets.tsp_graph_dataset import Rwd_TSPGraphDataset, TSPGraphDataset
+from co_datasets.tsp_graph_dataset import Rwd_TSPGraphDataset
 from pl_meta_model import COMetaModel
 from utils.diffusion_schedulers import InferenceSchedule
 from utils.tsp_utils import TSPEvaluator, batched_two_opt_torch, merge_tours
@@ -29,18 +29,18 @@ class Rwd_TSPModel(COMetaModel):
         sparse_factor=self.args.sparse_factor,
     )
 
-    self.test_dataset = TSPGraphDataset(
+    self.test_dataset = Rwd_TSPGraphDataset(
         data_file=self.args.test_split,
         sparse_factor=self.args.sparse_factor,
     )
 
-    self.validation_dataset = TSPGraphDataset(
+    self.validation_dataset = Rwd_TSPGraphDataset(
         data_file=self.args.validation_split,
         sparse_factor=self.args.sparse_factor,
     )
 
-    self.val_metrics = Solution_Metric()
-    self.test_metrics = Solution_Metric()
+    # self.val_metrics = Solution_Metric()
+    # self.test_metrics = Solution_Metric()
 
   def forward(self, x, adj, t, reward, edge_index, node_count=None, edge_count=None):
     return self.model(x, t, reward, adj, edge_index, node_count=node_count, edge_count=edge_count)
@@ -170,14 +170,11 @@ class Rwd_TSPModel(COMetaModel):
     np_edge_index = None
     device = batch[-1].device
     if not self.sparse:
-      real_batch_idx, points, adj_matrix, gt_tour = batch
-      np_points = points.cpu().numpy()[0]
-      np_gt_tour = gt_tour.cpu().numpy()[0]
-      tsp_solver = TSPEvaluator(np_points)
-      gt_cost = tsp_solver.evaluate(np_gt_tour)
-      target = torch.tensor([[gt_cost]])
+      real_batch_idx, points, adj_matrix, gt_tour, gt_cost = batch
+      np_points = points.cpu().numpy()
+      target = gt_cost
     else:
-      real_batch_idx, graph_data, point_indicator, edge_indicator, gt_tour = batch
+      real_batch_idx, graph_data, point_indicator, edge_indicator, gt_tour, gt_cost = batch
       route_edge_flags = graph_data.edge_attr
       points = graph_data.x
       edge_index = graph_data.edge_index
@@ -188,12 +185,9 @@ class Rwd_TSPModel(COMetaModel):
       np_edge_index = edge_index.cpu().numpy()
       points = points.reshape((-1, 2))
       np_points = points.cpu().numpy()
-      np_gt_tour = gt_tour.cpu().numpy().reshape(-1)
-      tsp_solver = TSPEvaluator(np_points)
-      gt_cost = tsp_solver.evaluate(np_gt_tour)
       target = torch.tensor([[gt_cost]])
 
-    stacked_tours = []
+    # stacked_tours = []
 
     # if self.args.parallel_sampling > 1:
     #   if not self.sparse:
@@ -236,7 +230,7 @@ class Rwd_TSPModel(COMetaModel):
         adj_mat = xt.cpu().detach().numpy() * 0.5 + 0.5
       else:
         adj_mat = xt.float().cpu().detach().numpy() + 1e-6
-
+        
       if self.args.save_numpy_heatmap:
         self.run_save_numpy_heatmap(adj_mat, np_points, real_batch_idx, split)
 
@@ -244,8 +238,7 @@ class Rwd_TSPModel(COMetaModel):
       tours, merge_iterations = merge_tours(
           adj_mat, np_points, np_edge_index,
           sparse_graph=self.sparse,
-          parallel_sampling=self.args.parallel_sampling,
-      )
+          parallel_sampling=adj_mat.shape[0])
 
       # Refine using 2-opt
       if self.args.refine:
@@ -254,17 +247,17 @@ class Rwd_TSPModel(COMetaModel):
           max_iterations=self.args.two_opt_iterations, device=device)
       else:
         solved_tours = tours
-      stacked_tours.append(solved_tours)
-
-    solved_tours = np.concatenate(stacked_tours, axis=0)
-    total_sampling = self.args.parallel_sampling * self.args.sequential_sampling
-    all_solved_costs = [tsp_solver.evaluate(solved_tours[i]) for i in range(total_sampling)]
-    best_solved_cost = np.min(all_solved_costs)
+      
+      #stacked_tours.append(solved_tours)
+    
+    all_solved_costs = [TSPEvaluator(np_points[i]).evaluate(solved_tours[i]) for i in range(len(solved_tours))]
+    avg_solved_cost = torch.tensor(sum(all_solved_costs)/len(all_solved_costs))
+    avg_gt_cost = torch.mean(gt_cost.cpu().reshape(-1))
     
     metrics = {
-          f"{split}/gt_cost": gt_cost,
-          f"{split}/solved_cost": best_solved_cost,
-          f"{split}/subopt_gap": best_solved_cost - gt_cost,
+          f"{split}/gt_cost": avg_gt_cost,
+          f"{split}/solved_cost": avg_solved_cost,
+          f"{split}/subopt_gap": avg_solved_cost - avg_gt_cost,
       }
     if self.args.refine:
       other_metrics = {
@@ -391,7 +384,7 @@ class Rwd_TSPModel(COMetaModel):
 
   def on_test_epoch_start(self) -> None:
     self.print("Starting final test...")
-    self.test_metrics.reset()
+    #self.test_metrics.reset()
 
   def test_step(self, batch, batch_idx, split='test'):
     #only supports batch size of 1 currrently
@@ -400,17 +393,17 @@ class Rwd_TSPModel(COMetaModel):
     elif self.args.decoding_strategy == 'heuristic':
       metrics = self.test_heuristic_decoding(batch, batch_idx, split=split)
     
-    (self.test_metrics if split=='test' else self.val_metrics).update(metrics)
+    # (self.test_metrics if split=='test' else self.val_metrics).update(metrics)
     for k, v in metrics.items():
       self.log(k, v, on_step=True, sync_dist=True)
     
     return metrics
 
-  def on_test_epoch_end(self):
-    avg_gt_cost, avg_pred_cost, avg_gap = self.test_metrics.compute()
-    self.print(f"--Test Avg GT Cost: {avg_gt_cost},"\
-             f"--Test Avg Pred Cost: {avg_pred_cost},"\
-             f"--Test Avg Gap: {avg_gap}.")
+  # def on_test_epoch_end(self):
+  #   avg_gt_cost, avg_pred_cost, avg_gap = self.test_metrics.compute()
+  #   self.print(f"--Test Avg GT Cost: {avg_gt_cost},"\
+  #            f"--Test Avg Pred Cost: {avg_pred_cost},"\
+  #            f"--Test Avg Gap: {avg_gap}.")
 
   def run_save_numpy_heatmap(self, adj_mat, np_points, real_batch_idx, split):
     if self.args.parallel_sampling > 1 or self.args.sequential_sampling > 1:
@@ -423,16 +416,16 @@ class Rwd_TSPModel(COMetaModel):
     np.save(os.path.join(heatmap_path, f"{split}-heatmap-{real_batch_idx}.npy"), adj_mat)
     np.save(os.path.join(heatmap_path, f"{split}-points-{real_batch_idx}.npy"), np_points)
 
-  def on_validation_epoch_start(self) -> None:
-    self.print("Starting validate...")
-    self.val_metrics.reset()
+  # def on_validation_epoch_start(self) -> None:
+  #   self.print("Starting validate...")
+  #   self.val_metrics.reset()
   
   def validation_step(self, batch, batch_idx):
     return self.test_step(batch, batch_idx, split='val')
   
-  def on_validation_epoch_end(self) -> None:
-    avg_gt_cost, avg_pred_cost, avg_gap = self.val_metrics.compute()
-    self.print(f"Epoch {self.current_epoch}:"\
-             f"--Val Avg GT Cost: {avg_gt_cost},"\
-             f"--Val Avg Pred Cost: {avg_pred_cost},"\
-             f"--Val Avg Gap: {avg_gap}.")
+  # def on_validation_epoch_end(self) -> None:
+  #   avg_gt_cost, avg_pred_cost, avg_gap = self.val_metrics.compute()
+  #   self.print(f"Epoch {self.current_epoch}:"\
+  #            f"--Val Avg GT Cost: {avg_gt_cost},"\
+  #            f"--Val Avg Pred Cost: {avg_pred_cost},"\
+  #            f"--Val Avg Gap: {avg_gap}.")

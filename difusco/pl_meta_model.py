@@ -278,7 +278,7 @@ class COMetaModel(pl.LightningModule):
     return test_dataloader
 
   def val_dataloader(self):
-    if 'vrp' in self.args.task or 'dag' in self.args.task:
+    if 'vrp' in self.args.task or 'dag' in self.args.task or 'tsp' in self.args.task:
       batch_size = self.args.batch_size
     else:
       batch_size = 1

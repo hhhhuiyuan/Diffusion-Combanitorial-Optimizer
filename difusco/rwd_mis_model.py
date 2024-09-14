@@ -171,7 +171,7 @@ class Rwd_MISModel(COMetaModel):
       t = torch.from_numpy(t).view(1)
     
       if self.guidance:
-        rwd_mask = torch.ones_like(reward).to(device)
+        rwd_mask = torch.zeros_like(reward).to(device)
         cond_rwd = torch.cat((reward, rwd_mask), dim=1)
         x0_pred_cond = self.forward(
             xt.float().to(device),
@@ -179,7 +179,7 @@ class Rwd_MISModel(COMetaModel):
             cond_rwd.float().to(device),
             edge_index.long().to(device) if edge_index is not None else None,
         )
-        rwd_mask = torch.zeros_like(reward).to(device)
+        rwd_mask = torch.ones_like(reward).to(device)
         uncond_rwd = torch.cat((reward, rwd_mask), dim=1)
         x0_pred_uncond = self.forward(
             xt.float().to(device),

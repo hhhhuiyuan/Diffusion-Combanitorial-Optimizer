@@ -115,7 +115,7 @@ def merge_tours(adj_mat, np_points, edge_index_np, sparse_graph=False, parallel_
     ]
 
   splitted_points = [
-      np_points for _ in range(parallel_sampling)
+      np_points[i] for i in range(parallel_sampling)
   ]
 
   if np_points.shape[0] > 1000 and parallel_sampling > 1:
