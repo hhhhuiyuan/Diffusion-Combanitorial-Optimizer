@@ -3,6 +3,9 @@ probelms/*
 data/tgl/*
 data/attention-learn-to-route/*
 env.yml
-bash_scripts/*
+bash_scripts/mis
+bash_scripts/mis700-800
+bash_scripts/tsp50
+bash_scripts/tsp100
 *.pyc
 difusco/utils/__pycache__
