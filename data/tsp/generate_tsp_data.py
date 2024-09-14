@@ -9,6 +9,7 @@ import numpy as np
 import tqdm
 import tsplib95
 from concorde.tsp import TSPSolver  # https://github.com/jvkersch/pyconcorde
+from difusco.utils.tsp_utils import TSPEvaluator
 
 warnings.filterwarnings("ignore")
 
@@ -71,11 +72,17 @@ if __name__ == "__main__":
         tours = p.map(solve_tsp, [batch_nodes_coord[idx] for idx in range(opts.batch_size)])
 
       for idx, tour in enumerate(tours):
+        np_tour = np.array(tour)
+        np_points = batch_nodes_coord[idx]
+        tsp_solver = TSPEvaluator(np_points)
+        time_cost = tsp_solver.evaluate(np_tour)
+        
         if (np.sort(tour) == np.arange(num_nodes)).all():
           f.write(" ".join(str(x) + str(" ") + str(y) for x, y in batch_nodes_coord[idx]))
           f.write(str(" ") + str('output') + str(" "))
           f.write(str(" ").join(str(node_idx + 1) for node_idx in tour))
           f.write(str(" ") + str(tour[0] + 1) + str(" "))
+          f.write( str(" ") + str('time_cost') + str(" ") + str(time_cost) )
           f.write("\n")
 
     end_time = time.time() - start_time
