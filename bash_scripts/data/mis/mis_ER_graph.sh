@@ -4,6 +4,7 @@
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=32
 #SBATCH --time=5:00:00
+#SBATCH --nodelist=della-k18g3
 #SBATCH -A mengdigroup
 #SBATCH -p pli
 
@@ -11,7 +12,7 @@ module purge
 module load anaconda3/2023.9
 conda activate DIFFOPT
 
-export GRB_LICENSE_FILE= GRB_LICENSE_FILE=/home/huiyuan/gurobi_license/gurobi.lic
+export GRB_LICENSE_FILE=/home/huiyuan/gurobi_della_k18g3/gurobi.lic
 SEED=1023
 #$((SEED + 1234))
 
@@ -34,9 +35,9 @@ SEED=1023
 python -u data/mis-benchmark-framework/generate_satlib_graph.py gendata \
     random \
     None \
-    ../data/shared/huiyuan/mis100/weighted_ER_val_$SEED\
+    ../data/shared/huiyuan/mis100/test_time_$SEED\
     --model er \
-    --num_graphs 2560 \
+    --num_graphs 12800 \
     --min_n 100 \
     --max_n 100 \
     --er_p 0.15 \

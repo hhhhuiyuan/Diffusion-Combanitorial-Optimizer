@@ -702,7 +702,16 @@ class CondGNNEncoder(nn.Module):
     x = self.node_embed(self.pos_embed(x))
     e = self.edge_embed(self.edge_pos_embed(graph))
     time_emb = self.time_embed(timestep_embedding(timesteps, self.hidden_dim))
-    reward_emb = self.reward_embed(rewards)
+    rewards = rewards.view(-1)
+    if self.classifier_free_guidance:
+      rwd_mask = rewards[:, 1].view(-1,1)
+      rewards = rewards[:, 0]
+      reward_emb = self.reward_embed(reward_embedding(rewards, self.hidden_dim))
+      reward_emb = reward_emb * (1 - rwd_mask)
+    else:
+      rewards = rewards.view(-1)
+      reward_emb = self.reward_embed(reward_embedding(rewards, self.hidden_dim))
+    
     graph = torch.ones_like(graph).long()
 
     for layer, time_layer, reward_layer, out_layer in zip(self.layers, self.time_embed_layers, self.reward_embed_layers, self.per_layer_out):
