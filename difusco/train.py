@@ -166,7 +166,7 @@ def main(args):
   rank_zero_info(f"Logging to {wandb_logger.save_dir}/{wandb_logger.name}/{wandb_logger.version}")
 
   checkpoint_callback = ModelCheckpoint(
-      monitor='val/solved_cost', mode=saving_mode,
+      monitor='val/subopt_gap_epoch', mode=saving_mode,
       save_top_k=3, save_last=True,
       dirpath=os.path.join(wandb_logger.save_dir,
                            args.wandb_logger_name,
