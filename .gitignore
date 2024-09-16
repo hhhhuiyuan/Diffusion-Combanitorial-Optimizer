@@ -7,3 +7,5 @@ bash_scripts/mis
 bash_scripts/mis700-800
 *.pyc
 difusco/utils/__pycache__
+*.res
+*.sol
