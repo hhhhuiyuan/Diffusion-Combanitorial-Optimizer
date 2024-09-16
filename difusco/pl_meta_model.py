@@ -70,6 +70,7 @@ class COMetaModel(pl.LightningModule):
           sparse=self.sparse,
           use_activation_checkpoint=self.args.use_activation_checkpoint,
           node_feature_only=node_feature_only,
+          guidance = self.guidance
         )
       # elif self.args.model == 'transformer':
       #   self.model = GraphTransformer(
@@ -279,7 +280,7 @@ class COMetaModel(pl.LightningModule):
 
   def val_dataloader(self):
     if 'vrp' in self.args.task or 'dag' in self.args.task or 'tsp' in self.args.task:
-      batch_size = self.args.batch_size
+      batch_size = self.args.val_batch_size
     else:
       batch_size = 1
     if self.args.task == 'addedge_dag':
