@@ -90,7 +90,6 @@ class Rwd_TSPModel(COMetaModel):
       if self.guidance:
         raise NotImplementedError("Guidance not supported for sparse graphs")
     
-    import pdb; pdb.set_trace()
     # Denoise
     x0_pred = self.forward(
         points.float().to(adj_matrix.device),
@@ -147,7 +146,6 @@ class Rwd_TSPModel(COMetaModel):
       if self.sparse:
         raise NotImplementedError("Sparse graphs not supported for categorical diffusion")
         
-      import pdb; pdb.set_trace()
       if self.guidance:
         rwd_mask = torch.zeros_like(target).to(device)
         cond_rwd = torch.cat((target, rwd_mask), dim=1)
@@ -155,7 +153,7 @@ class Rwd_TSPModel(COMetaModel):
             points.float().to(device),
             xt.float().to(device),
             t.float().to(device),
-            target.float().to(device),
+            cond_rwd.float().to(device),
             edge_index.long().to(device) if edge_index is not None else None,
         )
         
@@ -165,7 +163,7 @@ class Rwd_TSPModel(COMetaModel):
             points.float().to(device),
             xt.float().to(device),
             t.float().to(device),
-            target.float().to(device),
+            uncond_rwd.float().to(device),
             edge_index.long().to(device) if edge_index is not None else None,
         )
         
