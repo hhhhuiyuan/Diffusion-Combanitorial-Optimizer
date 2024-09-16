@@ -328,7 +328,6 @@ class TSPModel(COMetaModel):
       
       #stacked_tours.append(solved_tours)
 
-
     all_solved_costs = [TSPEvaluator(np_points[i]).evaluate(solved_tours[i]) for i in range(len(solved_tours))]
     avg_solved_cost = torch.tensor(sum(all_solved_costs)/len(all_solved_costs))
     avg_gt_cost = torch.mean(gt_cost.cpu().reshape(-1))
@@ -474,7 +473,6 @@ class TSPModel(COMetaModel):
     elif self.args.decoding_strategy == 'heuristic':
       metrics = self.test_heuristic_decoding(batch, batch_idx, split=split)
       #(self.test_metrics if split=='test' else self.val_metrics).update(metrics)
-    
     for k, v in metrics.items():
         self.log(k, v, on_step=True, sync_dist=True)
     return metrics

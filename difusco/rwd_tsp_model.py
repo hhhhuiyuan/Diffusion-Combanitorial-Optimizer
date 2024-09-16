@@ -73,6 +73,9 @@ class Rwd_TSPModel(COMetaModel):
 
     if not self.sparse:
       t = torch.from_numpy(t).float().view(adj_matrix.shape[0])
+      if self.guidance:
+        rwd_mask = torch.bernoulli(0.1 * torch.ones_like(time_cost).to(adj_matrix.device))
+        time_cost = torch.cat((time_cost, rwd_mask), dim=1).contiguous()
     else:
       edge_index = edge_index.float().to(adj_matrix.device).reshape(2, -1) 
         
@@ -83,7 +86,11 @@ class Rwd_TSPModel(COMetaModel):
       xt = xt.reshape(-1)
       adj_matrix = adj_matrix.reshape(-1) 
       points = points.reshape(-1, 2) 
+      
+      if self.guidance:
+        raise NotImplementedError("Guidance not supported for sparse graphs")
     
+    import pdb; pdb.set_trace()
     # Denoise
     x0_pred = self.forward(
         points.float().to(adj_matrix.device),
@@ -136,18 +143,50 @@ class Rwd_TSPModel(COMetaModel):
   def categorical_denoise_step(self, points, xt, t, target, device, edge_index=None, target_t=None):
     with torch.no_grad():
       t = torch.from_numpy(t).view(1)
-      x0_pred = self.forward(
-          points.float().to(device),
-          xt.float().to(device),
-          t.float().to(device),
-          target.float().to(device),
-          edge_index.long().to(device) if edge_index is not None else None,
-      )
-
-      if not self.sparse:
-        x0_pred_prob = x0_pred.permute((0, 2, 3, 1)).contiguous().softmax(dim=-1)
+      
+      if self.sparse:
+        raise NotImplementedError("Sparse graphs not supported for categorical diffusion")
+        
+      import pdb; pdb.set_trace()
+      if self.guidance:
+        rwd_mask = torch.zeros_like(target).to(device)
+        cond_rwd = torch.cat((target, rwd_mask), dim=1)
+        x0_pred_cond = self.forward(
+            points.float().to(device),
+            xt.float().to(device),
+            t.float().to(device),
+            target.float().to(device),
+            edge_index.long().to(device) if edge_index is not None else None,
+        )
+        
+        rwd_mask = torch.ones_like(target).to(device)
+        uncond_rwd = torch.cat((target, rwd_mask), dim=1)
+        x0_pred_uncond = self.forward(
+            points.float().to(device),
+            xt.float().to(device),
+            t.float().to(device),
+            target.float().to(device),
+            edge_index.long().to(device) if edge_index is not None else None,
+        )
+        
+        x0_pred_prob_cond = x0_pred_cond.permute((0, 2, 3, 1)).contiguous().softmax(dim=-1)
+        x0_pred_prob_uncond = x0_pred_uncond.permute((0, 2, 3, 1)).contiguous().softmax(dim=-1)
+        x0_pred_prob = x0_pred_prob_cond * (x0_pred_prob_cond/x0_pred_prob_uncond) ** self.args.guidance
+        x0_pred_prob = x0_pred_prob/x0_pred_prob.sum(dim=-1, keepdim=True) 
+      
       else:
-        x0_pred_prob = x0_pred.reshape((1, points.shape[0], -1, 2)).softmax(dim=-1)
+        x0_pred = self.forward(
+            points.float().to(device),
+            xt.float().to(device),
+            t.float().to(device),
+            target.float().to(device),
+            edge_index.long().to(device) if edge_index is not None else None,
+        )
+
+        if not self.sparse:
+          x0_pred_prob = x0_pred.permute((0, 2, 3, 1)).contiguous().softmax(dim=-1)
+        else:
+          x0_pred_prob = x0_pred.reshape((1, points.shape[0], -1, 2)).softmax(dim=-1)
 
       xt = self.categorical_posterior(target_t, t, x0_pred_prob, xt)
       return xt

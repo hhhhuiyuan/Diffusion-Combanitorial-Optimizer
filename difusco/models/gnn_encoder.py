@@ -365,16 +365,18 @@ class DAGCondGNNEncoder(nn.Module):
   def __init__(self, n_layers, hidden_dim, out_channels=1, aggregation="sum", norm="layer",
                learn_norm=True, track_norm=False, gated=True,
                sparse=False, use_activation_checkpoint=False, node_feature_only=False,
-               *args, **kwargs):
+               guidance = 0, *args, **kwargs):
     super().__init__()
     self.sparse = sparse
     self.node_feature_only = node_feature_only
+    self.classifier_free_guidance = guidance
+    
     self.hidden_dim = hidden_dim
     time_embed_dim = hidden_dim // 2
+    
     #add reward embedding dim
     reward_embed_dim = hidden_dim // 2
     self.node_embed = nn.Linear(hidden_dim, hidden_dim)
-    #self.pbm_edge_embed = nn.Linear(hidden_dim, hidden_dim)
     self.slu_edge_embed = nn.Linear(hidden_dim, hidden_dim)
     
     if not node_feature_only:
@@ -391,7 +393,7 @@ class DAGCondGNNEncoder(nn.Module):
     
     #add reward embedding
     self.reward_embed = nn.Sequential(
-        linear(1, reward_embed_dim),
+        linear(hidden_dim, reward_embed_dim),
         nn.ReLU(),
         linear(reward_embed_dim, reward_embed_dim),
     )
@@ -460,7 +462,16 @@ class DAGCondGNNEncoder(nn.Module):
     e = e_slu
     
     time_emb = self.time_embed(timestep_embedding(timesteps, self.hidden_dim))
-    reward_emb = self.reward_embed(rewards)
+    
+    if self.classifier_free_guidance:
+      rwd_mask = rewards[:, 1].view(-1,1)
+      rewards = rewards[:, 0]
+      reward_emb = self.reward_embed(reward_embedding(rewards, self.hidden_dim))
+      reward_emb = reward_emb * (1 - rwd_mask)
+    else:
+      rewards = rewards.view(-1)
+      reward_emb = self.reward_embed(reward_embedding(rewards, self.hidden_dim))
+   
     graph = torch.ones_like(slu_graph).long()
 
     for layer, time_layer, reward_layer, out_layer in zip(self.layers, self.time_embed_layers, self.reward_embed_layers, self.per_layer_out):
@@ -702,7 +713,6 @@ class CondGNNEncoder(nn.Module):
     x = self.node_embed(self.pos_embed(x))
     e = self.edge_embed(self.edge_pos_embed(graph))
     time_emb = self.time_embed(timestep_embedding(timesteps, self.hidden_dim))
-    rewards = rewards.view(-1)
     if self.classifier_free_guidance:
       rwd_mask = rewards[:, 1].view(-1,1)
       rewards = rewards[:, 0]

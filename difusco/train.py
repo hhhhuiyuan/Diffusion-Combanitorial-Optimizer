@@ -43,6 +43,7 @@ def arg_parser():
   parser.add_argument('--test_examples', type=int, default=320)
 
   parser.add_argument('--batch_size', type=int, default=64)
+  parser.add_argument('--val_batch_size', type=int, default=64)
   parser.add_argument('--num_epochs', type=int, default=50)
   parser.add_argument('--learning_rate', type=float, default=1e-4)
   parser.add_argument('--weight_decay', type=float, default=0.0)
