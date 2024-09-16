@@ -67,6 +67,11 @@ class AddEdge_DAGModel(COMetaModel):
       t = torch.from_numpy(t).float().view(job_nodes.shape[0])
     
     device = order_mats.device
+    
+    if self.guidance:
+      rwd_mask = torch.bernoulli(0.1 * torch.ones_like(makespans).to(device))
+      makespans = torch.cat((makespans, rwd_mask), dim=1)
+    
     # Denoise
     x0_pred = self.model(
         job_nodes.float().to(device),
@@ -106,23 +111,49 @@ class AddEdge_DAGModel(COMetaModel):
 
       xt[dep_mask] = 1
       
-      x0_pred = self.model(
-        job_nodes.float().to(device),
-        #dep_adj_mats.float().to(device),
-        t_batched.float().to(device),
-        target.float().to(device),
-        xt.float().to(device),
-    )
-      if not self.sparse:
-        x0_pred_prob = x0_pred.permute((0, 2, 3, 1)).contiguous().softmax(dim=-1)
+      if self.guidance:
+        rwd_mask = torch.zeros_like(target).to(device)
+        cond_rwd = torch.cat((target, rwd_mask), dim=1)
+        x0_pred_cond = self.model(
+          job_nodes.float().to(device),
+          #dep_adj_mats.float().to(device),
+          t_batched.float().to(device),
+          cond_rwd.float().to(device),
+          xt.float().to(device),
+        )
+        rwd_mask = torch.ones_like(target).to(device)
+        uncond_rwd = torch.cat((target, rwd_mask), dim=1)
+        x0_pred_uncond = self.model(
+          job_nodes.float().to(device),
+          #dep_adj_mats.float().to(device),
+          t_batched.float().to(device),
+          uncond_rwd.float().to(device),
+          xt.float().to(device),
+        )
+        
+        x0_pred_prob_cond = x0_pred_cond.permute((0, 2, 3, 1)).contiguous().softmax(dim=-1)
+        x0_pred_prob_uncond = x0_pred_uncond.permute((0, 2, 3, 1)).contiguous().softmax(dim=-1)
+        x0_pred_prob = x0_pred_prob_cond * (x0_pred_prob_cond/x0_pred_prob_uncond) ** self.args.guidance
+        x0_pred_prob = x0_pred_prob/x0_pred_prob.sum(dim=-1, keepdim=True)        
+      
       else:
-        x0_pred_prob = x0_pred.reshape((1, job_nodes.shape[0], -1, 2)).softmax(dim=-1)
+        x0_pred = self.model(
+          job_nodes.float().to(device),
+          #dep_adj_mats.float().to(device),
+          t_batched.float().to(device),
+          target.float().to(device),
+          xt.float().to(device),
+        )
+        if not self.sparse:
+          x0_pred_prob = x0_pred.permute((0, 2, 3, 1)).contiguous().softmax(dim=-1)
+        else:
+          x0_pred_prob = x0_pred.reshape((1, job_nodes.shape[0], -1, 2)).softmax(dim=-1)
 
-      xt_list = []
-      for i in range(job_nodes.shape[0]):
-        xt_list.append(self.categorical_posterior(target_t, t, x0_pred_prob[i], xt[i]))
-      xt = torch.stack(xt_list) 
-     
+      # xt_list = []
+      # for i in range(job_nodes.shape[0]):
+      #   xt_list.append(self.categorical_posterior(target_t, t, x0_pred_prob[i], xt[i]))
+      # xt = torch.stack(xt_list) 
+      xt = self.categorical_posterior(target_t, t, x0_pred_prob, xt)   
       return xt
     
 
