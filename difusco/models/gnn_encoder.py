@@ -269,13 +269,27 @@ class ScalarEmbeddingSine(nn.Module):
     self.scale = scale
 
   def forward(self, x):
-    x_embed = x
-    dim_t = torch.arange(self.num_pos_feats, dtype=torch.float32, device=x.device)
-    dim_t = self.temperature ** (2 * torch.div(dim_t, 2, rounding_mode='trunc') / self.num_pos_feats)
+    if x.dim() == 3:
+      x_embed = x
+      dim_t = torch.arange(self.num_pos_feats, dtype=torch.float32, device=x.device)
+      dim_t = self.temperature ** (2 * torch.div(dim_t, 2, rounding_mode='trunc') / self.num_pos_feats)
+      pos_x = x_embed[:, :, :, None] / dim_t
+      pos = torch.stack((pos_x[:, :, :, 0::2].sin(), pos_x[:, :, :, 1::2].cos()), dim=4).flatten(3)
     
-    pos_x = x_embed[:, :, :, None] / dim_t
-    pos_x = torch.stack((pos_x[:, :, :, 0::2].sin(), pos_x[:, :, :, 1::2].cos()), dim=4).flatten(3)
-    return pos_x
+    elif x.dim() == 4 and x.shape[3] == 2:
+      x_embed = x[:, :, :, 0]
+      y_embed = x[:, :, :, 1]
+      
+      dim_t = torch.arange(self.num_pos_feats//2, dtype=torch.float32, device=x.device)
+      dim_t = self.temperature ** (2 * torch.div(dim_t, 2, rounding_mode='trunc') / self.num_pos_feats)
+  
+      pos_x = x_embed[:, :, :, None] / dim_t
+      pos_y = y_embed[:, :, :, None] / dim_t
+      pos_x = torch.stack((pos_x[:, :, :, 0::2].sin(), pos_x[:, :, :, 1::2].cos()), dim=4).flatten(3)
+      pos_y = torch.stack((pos_y[:, :, :, 0::2].sin(), pos_y[:, :, :, 1::2].cos()), dim=4).flatten(3)
+      pos = torch.cat((pos_x, pos_y), dim=3).contiguous()
+    
+    return pos
 
 
 class ScalarEmbeddingSine1D(nn.Module):
@@ -709,7 +723,7 @@ class CondGNNEncoder(nn.Module):
     """
     # Embed edge features
     del edge_index
-
+    import pdb; pdb.set_trace()
     x = self.node_embed(self.pos_embed(x))
     e = self.edge_embed(self.edge_pos_embed(graph))
     time_emb = self.time_embed(timestep_embedding(timesteps, self.hidden_dim))
@@ -961,6 +975,7 @@ class GNNEncoder(nn.Module):
     """
     # Embed edge features
     del edge_index
+    
     x = self.node_embed(self.pos_embed(x))
     e = self.edge_embed(self.edge_pos_embed(graph))
     time_emb = self.time_embed(timestep_embedding(timesteps, self.hidden_dim))

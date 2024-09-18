@@ -116,6 +116,10 @@ class TSPModel(COMetaModel):
     else:
       t = torch.from_numpy(t).float().view(adj_matrix.shape[0])
 
+    if self.args.tsp_use_edge:
+      edges = torch.cdist(points, points)
+      xt = torch.stack((edges, xt), dim=-1)
+    
     # Denoise
     x0_pred = self.forward(
         points.float().to(adj_matrix.device),
@@ -181,6 +185,8 @@ class TSPModel(COMetaModel):
       # if self.args.sparse_noise:
       #   xt = torch.sparse_coo_tensor(edge_index, xt, size=(points.shape[0], points.shape[0])).to_dense()
       #   xt = xt.unsqueeze(0)
+      if self.args.tsp_use_edge:
+        xt = xt[..., 1]
       xt = self.categorical_posterior(target_t, t, x0_pred_prob, xt)
       return xt
 
@@ -273,6 +279,10 @@ class TSPModel(COMetaModel):
         t1 = np.array([t1]).astype(int)
         t2 = np.array([t2]).astype(int)
 
+        if self.args.tsp_use_edge:
+          edges = torch.cdist(points, points)
+          xt = torch.stack((edges, xt), dim=-1)
+        
         if self.diffusion_type == 'gaussian':
           xt = self.gaussian_denoise_step(
               points, xt, t1, device, edge_index, target_t=t2)
