@@ -133,10 +133,10 @@ def main(args):
     saving_mode = 'min'
   elif args.task == 'mis':
     model_class = MISModel
-    saving_mode = 'max'
+    saving_mode = 'min'
   elif args.task == 'rwd_mis':
     model_class = Rwd_MISModel
-    saving_mode = 'max'
+    saving_mode = 'min'
   elif args.task == 'dag':
     model_class = DAGModel
     saving_mode = 'min'
@@ -211,7 +211,7 @@ def main(args):
       trainer.fit(model, ckpt_path=ckpt_path)
 
     if args.do_test:
-      trainer.test(ckpt_path=checkpoint_callback.best_model_path)
+      trainer.test(ckpt_path=checkpoint_calfivtlback.best_model_path)
 
   elif args.do_test:
     trainer.validate(model, ckpt_path=ckpt_path)
