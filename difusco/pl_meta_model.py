@@ -271,15 +271,15 @@ class COMetaModel(pl.LightningModule):
     return train_dataloader
 
   def test_dataloader(self):
-    if 'vrp' in self.args.task:
-      batch_size = self.args.batch_size
+    if 'vrp' in self.args.task or 'dag' in self.args.task or 'tsp' in self.args.task or 'mis' in self.args.task:
+      batch_size = self.args.val_batch_size
     test_dataset = torch.utils.data.Subset(self.test_dataset, range(self.args.test_examples))
     print("Test dataset size:", len(test_dataset))
     test_dataloader = GraphDataLoader(test_dataset, batch_size=batch_size, shuffle=False)
     return test_dataloader
 
   def val_dataloader(self):
-    if 'vrp' in self.args.task or 'dag' in self.args.task or 'tsp' in self.args.task:
+    if 'vrp' in self.args.task or 'dag' in self.args.task or 'tsp' in self.args.task or 'mis' in self.args.task :
       batch_size = self.args.val_batch_size
     else:
       batch_size = 1

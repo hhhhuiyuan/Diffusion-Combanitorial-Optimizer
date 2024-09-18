@@ -154,38 +154,38 @@ def main(args):
 
   model = model_class(param_args=args)
 
-  wandb_path = os.path.join(args.storage_path, f'models')
-  os.makedirs(wandb_path, exist_ok=True)
-  wandb_id = os.getenv("WANDB_RUN_ID") or wandb.util.generate_id()
-  wandb_logger = WandbLogger(
-      name=args.wandb_logger_name,
-      project=project_name,
-      save_dir=wandb_path,
-      id=args.resume_id or wandb_id,
-  )
-  rank_zero_info(f"Logging to {wandb_logger.save_dir}/{wandb_logger.name}/{wandb_logger.version}")
+  if args.do_train:
+    wandb_path = os.path.join(args.storage_path, f'models')
+    os.makedirs(wandb_path, exist_ok=True)
+  
+    wandb_id = os.getenv("WANDB_RUN_ID") or wandb.util.generate_id()
+    wandb_logger = WandbLogger(
+        name=args.wandb_logger_name,
+        project=project_name,
+        save_dir=wandb_path,
+        id=args.resume_id or wandb_id,
+    )
+    rank_zero_info(f"Logging to {wandb_logger.save_dir}/{wandb_logger.name}/{wandb_logger.version}")
 
-  checkpoint_callback = ModelCheckpoint(
-      monitor='val/subopt_gap', mode=saving_mode,
-      save_top_k=3, save_last=True,
-      dirpath=os.path.join(wandb_logger.save_dir,
-                           args.wandb_logger_name,
-                           wandb_logger._id,
-                           'checkpoints'),
-  )
-  lr_callback = LearningRateMonitor(logging_interval='step')
+    checkpoint_callback = ModelCheckpoint(
+        monitor='val/subopt_gap', mode=saving_mode,
+        save_top_k=3, save_last=True,
+        dirpath=os.path.join(wandb_logger.save_dir,
+                            args.wandb_logger_name,
+                            wandb_logger._id,
+                            'checkpoints'),
+    )
+    lr_callback = LearningRateMonitor(logging_interval='step')
 
 
   trainer = Trainer(
       accelerator="auto",
       devices=torch.cuda.device_count() if torch.cuda.is_available() else None,
       max_epochs=epochs,
-      callbacks=[TQDMProgressBar(refresh_rate=20), checkpoint_callback, lr_callback],
+      callbacks=[TQDMProgressBar(refresh_rate=20), checkpoint_callback, lr_callback] if args.do_train else [TQDMProgressBar(refresh_rate=20)],
       #callbacks=[TQDMProgressBar(refresh_rate=20), lr_callback],
-      logger=wandb_logger,
+      logger=wandb_logger if args.do_train else None,
       check_val_every_n_epoch=1,
-      # dag task needs trun off static graph when use batch size=1 and grad accumulation
-      # runing with one gpu do not need DDP
       strategy=DDPStrategy(static_graph=False, find_unused_parameters=True) if args.multigpu else "auto",
       precision=16 if args.fp16 else 32,
       fast_dev_run= True if args.debug else False,
@@ -211,7 +211,7 @@ def main(args):
       trainer.fit(model, ckpt_path=ckpt_path)
 
     if args.do_test:
-      trainer.test(ckpt_path=checkpoint_calfivtlback.best_model_path)
+      trainer.test(ckpt_path=checkpoint_callback.best_model_path)
 
   elif args.do_test:
     trainer.validate(model, ckpt_path=ckpt_path)
