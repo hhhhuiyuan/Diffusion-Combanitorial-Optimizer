@@ -166,7 +166,7 @@ def main(args):
   rank_zero_info(f"Logging to {wandb_logger.save_dir}/{wandb_logger.name}/{wandb_logger.version}")
 
   checkpoint_callback = ModelCheckpoint(
-      monitor='val/subopt_gap_epoch', mode=saving_mode,
+      monitor='val/subopt_gap', mode=saving_mode,
       save_top_k=3, save_last=True,
       dirpath=os.path.join(wandb_logger.save_dir,
                            args.wandb_logger_name,
@@ -180,8 +180,8 @@ def main(args):
       accelerator="auto",
       devices=torch.cuda.device_count() if torch.cuda.is_available() else None,
       max_epochs=epochs,
-      #callbacks=[TQDMProgressBar(refresh_rate=20), checkpoint_callback, lr_callback],
-      callbacks=[TQDMProgressBar(refresh_rate=20), lr_callback],
+      callbacks=[TQDMProgressBar(refresh_rate=20), checkpoint_callback, lr_callback],
+      #callbacks=[TQDMProgressBar(refresh_rate=20), lr_callback],
       logger=wandb_logger,
       check_val_every_n_epoch=1,
       # dag task needs trun off static graph when use batch size=1 and grad accumulation
