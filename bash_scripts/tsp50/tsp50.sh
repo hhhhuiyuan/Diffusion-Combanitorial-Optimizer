@@ -4,13 +4,13 @@
 #SBATCH --time=15:00:00
 #SBATCH --gres=gpu:4
 #SBATCH --cpus-per-task=32
-#SBATCH -A mengdigroup
-#SBATCH -p pli
+##SBATCH -A mengdigroup
+##SBATCH -p pli
 
 #submit by $sbatch bash_scripts/tsp50/tsp50.sh
-module purge
-module load anaconda3/2023.9
-conda activate DIFFOPT_PLI
+# module purge
+# module load anaconda3/2023.9
+# conda activate DIFFOPT_PLI
 
 export PYTHONPATH="$PWD:$PYTHONPATH"
 export CUDA_VISIBLE_DEVICES=0,1,2,3

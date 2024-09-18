@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --output=/data/home/huiyuan23/DIFUSCO/slurm/main_%j.out
+#SBATCH --output=/data/home/taihui/hui_slurm/main_%j.out
 #SBATCH --nodes=1
 #SBATCH --time=06:00:00
 #SBATCH --gres=gpu:1
@@ -14,13 +14,13 @@ export CUDA_VISIBLE_DEVICES=0
 # shellcheck disable=SC2155
 #export WANDB_RUN_ID=$(python -c "import wandb; print(wandb.util.generate_id())")
 #echo "WANDB_ID is $WANDB_RUN_ID"
-export WANDB_MODE='disabled'
+export WANDB_MODE='online'
 
 python -u difusco/train.py \
   --seed 1023 \
   --task "rwd_tsp" \
   --project_name "RWD_DifusCO_TSP50" \
-  --wandb_logger_name "tsp50_rwd_subopt_gdc0" \
+  --wandb_logger_name "tsp50_test_aws" \
   --diffusion_type "categorical" \
   --learning_rate 0.0002 \
   --weight_decay 0.0001 \
