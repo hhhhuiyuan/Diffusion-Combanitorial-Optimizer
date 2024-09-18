@@ -4,7 +4,7 @@
 #SBATCH --time=1:00:00
 #SBATCH --gres=gpu:1
 
-#submit by $sbatch bash_scripts/tsp50/test_tsp.sh
+#submit by $sbatch bash_scripts/test_della/test_tsp.sh
 module purge
 module load anaconda3/2023.9
 conda activate DIFFOPT
@@ -24,8 +24,8 @@ python difusco/train.py \
   --training_split "../data/shared/huiyuan/tsp50/tsp50_val_1235.txt" \
   --validation_split "../data/shared/huiyuan/tsp50/tsp50_val_1235.txt" \
   --test_split "../data/shared/huiyuan/tsp50/tsp50_test_1023.txt" \
-  --test_examples 1280 \
-  --val_batch_size 256 \
+  --test_examples 128 \
+  --val_batch_size 128 \
   --inference_schedule "cosine" \
   --inference_diffusion_steps 50 \
   --decoding_strategy "greedy"\

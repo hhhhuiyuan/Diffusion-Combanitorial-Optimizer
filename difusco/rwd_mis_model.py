@@ -12,7 +12,7 @@ import torch.utils.data
 from co_datasets.mis_dataset import MISDataset, Rwd_MISDataset
 from utils.diffusion_schedulers import InferenceSchedule
 from pl_meta_model import COMetaModel
-from utils.mis_utils import mis_decode_np
+from utils.mis_utils import mis_decode_np, split_sparse_matrix
 
 
 class Rwd_MISModel(COMetaModel):
@@ -169,7 +169,7 @@ class Rwd_MISModel(COMetaModel):
   def categorical_denoise_step(self, xt, t, device, reward, edge_index=None, target_t=None):
     with torch.no_grad():
       t = torch.from_numpy(t).view(1)
-    
+
       if self.guidance:
         rwd_mask = torch.zeros_like(reward).to(device)
         cond_rwd = torch.cat((reward, rwd_mask), dim=1)
@@ -223,13 +223,19 @@ class Rwd_MISModel(COMetaModel):
     device = batch[-1].device
 
     if not self.args.weighted:
-      _, graph_data, _, mis_obj= batch
+      _, graph_data, size_indicator, mis_obj= batch
     else:
-      _, graph_data, weights, _, mis_obj = batch
+      _, graph_data, weights, size_indicator, mis_obj = batch
     
     node_labels = graph_data.x
     edge_index = graph_data.edge_index
     ref_objective = mis_obj
+    size_indicator = size_indicator.cpu().numpy()
+    split_indices = np.cumsum(size_indicator)[:-1]
+    edge_count = torch.bincount(graph_data.batch[graph_data.edge_index[0]])
+    
+    if self.args.weighted:
+      split_weights = np.split(weights.view(-1).cpu().numpy(), split_indices)
 
     stacked_predict_labels = []
     edge_index = edge_index.to(node_labels.device).reshape(2, -1)
@@ -237,7 +243,8 @@ class Rwd_MISModel(COMetaModel):
     adj_mat = scipy.sparse.coo_matrix(
         (np.ones_like(edge_index_np[0]), (edge_index_np[0], edge_index_np[1])),
     )
-
+    split_adj_mats = split_sparse_matrix(adj_mat, size_indicator)
+    
     for _ in range(self.args.sequential_sampling):
       xt = torch.randn_like(node_labels.float())
       if self.args.parallel_sampling > 1:
@@ -259,11 +266,16 @@ class Rwd_MISModel(COMetaModel):
                                         T=self.diffusion.T, inference_T=steps)
 
       target = ref_objective.float()
-      target = target.view(-1,1)
-      # edge_counts = torch.bincount(graph_data.batch[graph_data.edge_index[0]]) 
-      # mis_obj = mis_obj.view(-1)
-      # mis_obj = mis_obj.repeat_interleave(edge_counts, dim=0)
-      # mis_obj = mis_obj.view(-1, 1)
+      
+      if self.XE_rwd_cond == 'E':
+        target = target.view(-1)
+        target = target.repeat_interleave(edge_count, dim=0)
+        target = target.view(-1, 1)
+
+      else:
+        target = target.view(-1)
+        target = target.repeat_interleave(size_indicator.reshape(-1), dim=0)
+        target = target.view(-1, 1)
       
       if self.args.weighted:
         weights = weights.view(1, -1).squeeze(0)
@@ -288,27 +300,25 @@ class Rwd_MISModel(COMetaModel):
         predict_labels = xt.float().cpu().detach().numpy() * 0.5 + 0.5
       else:
         predict_labels = xt.float().cpu().detach().numpy() + 1e-6
-      stacked_predict_labels.append(predict_labels)
+      
+      predict_labels = np.split(predict_labels, split_indices)
+      stacked_predict_labels.extend(predict_labels)
 
-    predict_labels = np.concatenate(stacked_predict_labels, axis=0)
-    all_sampling = self.args.sequential_sampling * self.args.parallel_sampling
-
-    splitted_predict_labels = np.split(predict_labels, all_sampling)
-    solved_solutions = [mis_decode_np(predict_labels, adj_mat) for predict_labels in splitted_predict_labels]
+    solved_solutions = [mis_decode_np(predict_labels, adj_mat) for predict_labels, adj_mat in zip(stacked_predict_labels, split_adj_mats)]
     solved_solutions = [torch.from_numpy(solution) for solution in solved_solutions]
     
     if self.args.weighted:
-      solved_costs = [torch.dot(solution, weights.cpu()) for solution in solved_solutions]
+      solved_costs = [torch.dot(solved_solutions[i], torch.from_numpy(split_weights[i])) for i in range(len(solved_solutions))]
     else:
       solved_costs = [solved_solution.sum() for solved_solution in solved_solutions]
     
-    ref_objective = ref_objective.float().view(-1).cpu()
-    best_solved_cost = torch.max(torch.stack(solved_costs)).float()
+    ref_objective = torch.mean(ref_objective.float().view(-1).cpu())
+    avg_solved_cost = torch.mean(torch.stack(solved_costs).float())
 
     metrics = {
-        f"{split}/gt_obj": ref_objective,
-        f"{split}/solved_obj": best_solved_cost,
-        f"{split}/obj_gap": ref_objective - best_solved_cost,
+        f"{split}/gt_cost": ref_objective,
+        f"{split}/solved_cost": avg_solved_cost,
+        f"{split}/subopt_gap": ref_objective - avg_solved_cost,
     }
     for k, v in metrics.items():
       self.log(k, v, on_step=True, sync_dist=True, batch_size=batch_size)

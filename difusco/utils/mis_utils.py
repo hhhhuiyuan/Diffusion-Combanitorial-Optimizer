@@ -1,6 +1,39 @@
 import numpy as np
 import torch
 from torchmetrics import Metric
+import scipy.sparse
+
+def split_sparse_matrix(sparse_matrix, size_indicator):
+    """
+    Split a sparse matrix into multiple submatrices based on size_indicator.
+
+    Args:
+        sparse_matrix (scipy.sparse.coo_matrix): The original sparse matrix.
+        size_indicator (list): The list containing the number of nodes in each graph.
+
+    Returns:
+        list: A list of sparse submatrices.
+    """
+    submatrices = []
+    start_idx = 0
+    size_indicator = size_indicator.reshape(-1).tolist()
+    
+    for num_nodes in size_indicator:
+        end_idx = start_idx + num_nodes
+
+        # Extract the submatrix for the current graph
+        mask = (sparse_matrix.row >= start_idx) & (sparse_matrix.row < end_idx)
+        submatrix = scipy.sparse.coo_matrix(
+            (sparse_matrix.data[mask],
+             (sparse_matrix.row[mask] - start_idx, sparse_matrix.col[mask] - start_idx)),
+            shape=(num_nodes, num_nodes)
+        )
+
+        submatrices.append(submatrix)
+        start_idx = end_idx
+
+    return submatrices
+
 
 def mis_decode_np(predictions, adj_matrix):
   """Decode the labels to the MIS."""

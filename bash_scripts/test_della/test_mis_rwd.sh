@@ -24,8 +24,8 @@ python difusco/train.py \
   --training_split "../data/shared/huiyuan/mis100/weighted_ER_val_1023/*gpickle" \
   --validation_split "../data/shared/huiyuan/mis100/weighted_ER_val_1023/*gpickle" \
   --test_split "../data/shared/huiyuan/mis100/weighted_ER_val_1023/*gpickle" \
-  --test_examples 256 \
-  --val_batch_size 1 \
+  --test_examples 128 \
+  --val_batch_size 128 \
   --inference_schedule "cosine" \
   --inference_diffusion_steps 50 \
   --decoding_strategy "greedy"\
