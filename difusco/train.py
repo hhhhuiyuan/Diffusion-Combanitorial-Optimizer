@@ -102,8 +102,6 @@ def arg_parser():
   parser.add_argument('--guidance', type=float, default=0, help='strength of classifier free guidance, 0 if no guidance')
   parser.add_argument('--tsp_use_edge', action='store_true')
   
-
-    
   args = parser.parse_args()
   return args
 

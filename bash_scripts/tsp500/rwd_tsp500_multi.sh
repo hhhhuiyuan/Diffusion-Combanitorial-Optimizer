@@ -2,18 +2,19 @@
 #SBATCH --output=slurm/main_%j.out
 #SBATCH --nodes=1
 #SBATCH --time=20:00:00
-#SBATCH --gres=gpu:4
+#SBATCH --gres=gpu:1
 
 #submit by $sbatch bash_scripts/tsp500/rwd_tsp500_multi.sh
-source activate Digress
+export PATH=/data/home/huiyuan23/miniconda3/envs/Digress/bin:$PATH
 
 export PYTHONPATH="$PWD:$PYTHONPATH"
-export CUDA_VISIBLE_DEVICES=0,1,2,3
+#export CUDA_VISIBLE_DEVICES=0,1,2,3
+export CUDA_VISIBLE_DEVICES=0
 
 # shellcheck disable=SC2155
 #export WANDB_RUN_ID=$(python -c "import wandb; print(wandb.util.generate_id())")
 #echo "WANDB_ID is $WANDB_RUN_ID"
-export WANDB_MODE='online'
+export WANDB_MODE='disabled'
 
 python -u difusco/train.py \
   --seed 1023 \

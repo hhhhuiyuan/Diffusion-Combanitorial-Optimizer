@@ -54,13 +54,13 @@ class TSPModel(COMetaModel):
     
     elif self.args.sparse_noise:
       #in this case input data is still in txt, not graph
-      _, points, adj_matrix, _ = batch
+      _, points, adj_matrix, _, time_cost = batch
       t = np.random.randint(1, self.diffusion.T + 1, points.shape[0]).astype(int)
       bs = points.shape[0]
       num_nodes = points.shape[1]
       
     else:
-      _, graph_data, point_indicator, edge_indicator, _ = batch
+      _, graph_data, point_indicator, edge_indicator, _, time_cost = batch
       t = np.random.randint(1, self.diffusion.T + 1, point_indicator.shape[0]).astype(int)
       route_edge_flags = graph_data.edge_attr
       points = graph_data.x
@@ -321,11 +321,14 @@ class TSPModel(COMetaModel):
       if self.args.save_numpy_heatmap:
         self.run_save_numpy_heatmap(adj_mat, np_points, real_batch_idx, split)
 
+      if self.sparse:
+        np_points = np_points.reshape(1, -1, 2)
+
       #greedy sampling by adding edge to an empty graph until a tour is formeds
       tours, merge_iterations = merge_tours(
           adj_mat, np_points, np_edge_index,
           sparse_graph= self.sparse and not self.args.sparse_noise,
-          parallel_sampling=adj_mat.shape[0],
+          parallel_sampling=self.args.val_batch_size,
       )
 
       # Refine using 2-opt
