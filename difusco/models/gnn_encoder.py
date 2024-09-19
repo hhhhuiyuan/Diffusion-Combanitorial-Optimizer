@@ -280,8 +280,10 @@ class ScalarEmbeddingSine(nn.Module):
       x_embed = x[:, :, :, 0]
       y_embed = x[:, :, :, 1]
       
-      dim_t = torch.arange(self.num_pos_feats//2, dtype=torch.float32, device=x.device)
-      dim_t = self.temperature ** (2 * torch.div(dim_t, 2, rounding_mode='trunc') / self.num_pos_feats)
+      num_pos_feats_dist = self.num_pos_feats//2
+      
+      dim_t = torch.arange(num_pos_feats_dist, dtype=torch.float32, device=x.device)
+      dim_t = self.temperature ** (2 * torch.div(dim_t, 2, rounding_mode='trunc') / num_pos_feats_dist)
   
       pos_x = x_embed[:, :, :, None] / dim_t
       pos_y = y_embed[:, :, :, None] / dim_t
@@ -723,7 +725,6 @@ class CondGNNEncoder(nn.Module):
     """
     # Embed edge features
     del edge_index
-    import pdb; pdb.set_trace()
     x = self.node_embed(self.pos_embed(x))
     e = self.edge_embed(self.edge_pos_embed(graph))
     time_emb = self.time_embed(timestep_embedding(timesteps, self.hidden_dim))

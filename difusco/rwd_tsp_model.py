@@ -90,6 +90,10 @@ class Rwd_TSPModel(COMetaModel):
       if self.guidance:
         raise NotImplementedError("Guidance not supported for sparse graphs")
     
+    if self.args.tsp_use_edge:
+      edges = torch.cdist(points, points)
+      xt = torch.stack((edges, xt), dim=-1)
+    
     # Denoise
     x0_pred = self.forward(
         points.float().to(adj_matrix.device),
@@ -185,7 +189,9 @@ class Rwd_TSPModel(COMetaModel):
           x0_pred_prob = x0_pred.permute((0, 2, 3, 1)).contiguous().softmax(dim=-1)
         else:
           x0_pred_prob = x0_pred.reshape((1, points.shape[0], -1, 2)).softmax(dim=-1)
-
+      
+      if self.args.tsp_use_edge:
+        xt = xt[..., 1] 
       xt = self.categorical_posterior(target_t, t, x0_pred_prob, xt)
       return xt
 
@@ -260,6 +266,10 @@ class Rwd_TSPModel(COMetaModel):
         #   xt = self.gaussian_denoise_step(
         #       points, xt, t1, device, edge_index, target_t=t2)
         # else:
+        if self.args.tsp_use_edge:
+          edges = torch.cdist(points, points)
+          xt = torch.stack((edges, xt), dim=-1)
+        
         xt = self.categorical_denoise_step(
             points, xt, t1, target, device, edge_index, target_t=t2)
 
