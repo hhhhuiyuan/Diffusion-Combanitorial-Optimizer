@@ -99,6 +99,7 @@ def merge_tours(adj_mat, np_points, edge_index_np, sparse_graph=False, parallel_
     – Otherwise, insert (i, j) into the tour.
   • Return the extracted tour.
   """
+
   splitted_adj_mat = np.split(adj_mat, parallel_sampling, axis=0)
 
   if not sparse_graph:

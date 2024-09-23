@@ -8,3 +8,6 @@ bash_scripts/mis700-800
 difusco/utils/__pycache__
 *.res
 *.sol
+lightning_logs/
+tmp/
+eval/

@@ -82,14 +82,16 @@ class Rwd_TSPModel(COMetaModel):
       t = torch.from_numpy(t).float()
       t = t.reshape(-1, 1).repeat(1, adj_matrix.shape[1]).reshape(-1)
       time_cost = time_cost.reshape(-1, 1).repeat(1, adj_matrix.shape[1]).reshape(-1,1)
-        
+      
+      if self.guidance:
+        rwd_mask = torch.bernoulli(0.1 * torch.ones(point_indicator.shape[0]).to(adj_matrix.device))
+        rwd_mask = rwd_mask.reshape(-1, 1).repeat(1, adj_matrix.shape[1]).reshape(-1,1)
+        time_cost = torch.cat((time_cost, rwd_mask), dim=1).contiguous()
+      
       xt = xt.reshape(-1)
       adj_matrix = adj_matrix.reshape(-1) 
       points = points.reshape(-1, 2) 
-      
-      if self.guidance:
-        raise NotImplementedError("Guidance not supported for sparse graphs")
-    
+        
     if self.args.tsp_use_edge:
       edges = torch.cdist(points, points)
       xt = torch.stack((edges, xt), dim=-1)
@@ -146,13 +148,10 @@ class Rwd_TSPModel(COMetaModel):
   def categorical_denoise_step(self, points, xt, t, target, device, edge_index=None, target_t=None):
     with torch.no_grad():
       t = torch.from_numpy(t).view(1)
-      
-      if self.sparse:
-        raise NotImplementedError("Sparse graphs not supported for categorical diffusion")
         
       if self.guidance:
         rwd_mask = torch.zeros_like(target).to(device)
-        cond_rwd = torch.cat((target, rwd_mask), dim=1)
+        cond_rwd = torch.cat((target.to(device), rwd_mask), dim=1)
         x0_pred_cond = self.forward(
             points.float().to(device),
             xt.float().to(device),
@@ -162,7 +161,7 @@ class Rwd_TSPModel(COMetaModel):
         )
         
         rwd_mask = torch.ones_like(target).to(device)
-        uncond_rwd = torch.cat((target, rwd_mask), dim=1)
+        uncond_rwd = torch.cat((target.to(device), rwd_mask), dim=1)
         x0_pred_uncond = self.forward(
             points.float().to(device),
             xt.float().to(device),
@@ -170,11 +169,16 @@ class Rwd_TSPModel(COMetaModel):
             uncond_rwd.float().to(device),
             edge_index.long().to(device) if edge_index is not None else None,
         )
-        
-        x0_pred_prob_cond = x0_pred_cond.permute((0, 2, 3, 1)).contiguous().softmax(dim=-1)
-        x0_pred_prob_uncond = x0_pred_uncond.permute((0, 2, 3, 1)).contiguous().softmax(dim=-1)
-        x0_pred_prob = x0_pred_prob_cond * (x0_pred_prob_cond/x0_pred_prob_uncond) ** self.args.guidance
-        x0_pred_prob = x0_pred_prob/x0_pred_prob.sum(dim=-1, keepdim=True) 
+        if not self.sparse:
+          x0_pred_prob_cond = x0_pred_cond.permute((0, 2, 3, 1)).contiguous().softmax(dim=-1)
+          x0_pred_prob_uncond = x0_pred_uncond.permute((0, 2, 3, 1)).contiguous().softmax(dim=-1)
+          x0_pred_prob = x0_pred_prob_cond * (x0_pred_prob_cond/x0_pred_prob_uncond) ** self.args.guidance
+          x0_pred_prob = x0_pred_prob/x0_pred_prob.sum(dim=-1, keepdim=True)
+        else: 
+          x0_pred_prob_cond = x0_pred_cond.reshape((1, points.shape[0], -1, 2)).softmax(dim=-1)
+          x0_pred_prob_uncond = x0_pred_uncond.reshape((1, points.shape[0], -1, 2)).softmax(dim=-1)
+          x0_pred_prob = x0_pred_prob_cond * (x0_pred_prob_cond/x0_pred_prob_uncond) ** self.args.guidance
+          x0_pred_prob = x0_pred_prob/x0_pred_prob.sum(dim=-1, keepdim=True)
       
       else:
         x0_pred = self.forward(
@@ -228,7 +232,10 @@ class Rwd_TSPModel(COMetaModel):
       np_edge_index = edge_index.cpu().numpy()
       points = points.reshape((-1, 2))
       np_points = points.cpu().numpy()
-      target = torch.tensor([[gt_cost]])
+      edge_count = torch.bincount(graph_data.batch[graph_data.edge_index[0]])
+      gt_cost = gt_cost.repeat_interleave(edge_count, dim=0)
+      target = gt_cost
+      
 
     # stacked_tours = []
 
@@ -269,7 +276,7 @@ class Rwd_TSPModel(COMetaModel):
         if self.args.tsp_use_edge:
           edges = torch.cdist(points, points)
           xt = torch.stack((edges, xt), dim=-1)
-        
+      
         xt = self.categorical_denoise_step(
             points, xt, t1, target, device, edge_index, target_t=t2)
 
@@ -281,11 +288,15 @@ class Rwd_TSPModel(COMetaModel):
       if self.args.save_numpy_heatmap:
         self.run_save_numpy_heatmap(adj_mat, np_points, real_batch_idx, split)
 
+      if self.sparse:
+        np_points = np_points.reshape(1, -1, 2)
+      
       #greedy sampling by adding edge to an empty graph until a tour is formed
       tours, merge_iterations = merge_tours(
           adj_mat, np_points, np_edge_index,
-          sparse_graph=self.sparse,
-          parallel_sampling=adj_mat.shape[0])
+          sparse_graph=self.sparse and not self.args.sparse_noise,
+          parallel_sampling=self.args.val_batch_size,
+      )
 
       # Refine using 2-opt
       if self.args.refine:

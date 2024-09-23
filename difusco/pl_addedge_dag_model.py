@@ -210,10 +210,12 @@ class AddEdge_DAGModel(COMetaModel):
       slu_cost_dict[target_fac] = slu_cost  
       opt_gap_dict[target_fac] = slu_cost - ref_cost 
     
+    subopt_gap = min(opt_gap for opt_gap in opt_gap_dict.values())
     metrics = {
             f"{split}/ref_cost": ref_cost,
             f"{split}/solved_cost": slu_cost_dict,
             f"{split}/cost_gap": opt_gap_dict,
+            f"{split}/subopt_gap": subopt_gap
           }
     
     return metrics

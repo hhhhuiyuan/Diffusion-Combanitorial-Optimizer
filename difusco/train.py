@@ -26,6 +26,10 @@ from pl_vrp_model import VRPModel
 import numpy as np
 import random
 
+import contextlib
+import sys
+import io
+
 
 def arg_parser():
   parser = ArgumentParser(description='Train a Pytorch-Lightning diffusion model on a TSP dataset.')
@@ -101,6 +105,7 @@ def arg_parser():
   parser.add_argument('--XE_rwd_cond', type=str, choices=['X', 'E', 'XE'], default='E')
   parser.add_argument('--guidance', type=float, default=0, help='strength of classifier free guidance, 0 if no guidance')
   parser.add_argument('--tsp_use_edge', action='store_true')
+  parser.add_argument('--dynamic_mask', action='store_true')
   
   args = parser.parse_args()
   return args
@@ -214,9 +219,17 @@ def main(args):
       trainer.test(ckpt_path=checkpoint_callback.best_model_path)
 
   elif args.do_test:
-    trainer.validate(model, ckpt_path=ckpt_path)
-    if not args.do_valid_only:
+    #trainer.test(model, ckpt_path=ckpt_path)
+    test_output = io.StringIO()
+    with contextlib.redirect_stdout(test_output):
       trainer.test(model, ckpt_path=ckpt_path)
+    
+    os.makedirs(args.storage_path, exist_ok=True)
+    with open(f"{args.storage_path}/test_output.txt", "a") as f:
+      f.write("seed: " + str(args.seed) + "\n")
+      if args.guidance:
+        f.write("guidance: " + str(args.guidance) + "\n")
+      f.write(test_output.getvalue())
   
   trainer.logger.finalize("success")
 

@@ -85,10 +85,19 @@ class TSPModel(COMetaModel):
 
     if self.sparse:
       if self.args.sparse_noise:
-        query_index = torch.ones_like(adj_matrix) * self.args.query_factor/num_nodes
-        query_index = torch.bernoulli(query_index)
+        if self.args.dynamic_mask:
+          dynamic_factor = torch.cos(torch.from_numpy(t) /(2*self.diffusion.T) * torch.pi)
+          dynamic_factor = torch.maximum(dynamic_factor, torch.tensor(0.001, device=dynamic_factor.device))
+          multiplier = ((self.args.query_factor/num_nodes) - 0.01) / torch.mean(dynamic_factor)
+          dynamic_factor = multiplier * dynamic_factor
+          dynamic_factor = dynamic_factor.view(-1, 1, 1).to(adj_matrix.device)
+          query_index = torch.ones_like(adj_matrix) * dynamic_factor
+          query_index = torch.bernoulli(query_index)
+        else:
+          query_index = torch.ones_like(adj_matrix) * self.args.query_factor/num_nodes
+          query_index = torch.bernoulli(query_index)
+      
         union_mask = torch.logical_or(query_index != 0, xt != 0)
-        
         union_index = torch.nonzero(union_mask) 
         union_index[:, 1] += union_index[:, 0] * num_nodes
         union_index[:, 2] += union_index[:, 0] * num_nodes
@@ -320,8 +329,8 @@ class TSPModel(COMetaModel):
 
       if self.args.save_numpy_heatmap:
         self.run_save_numpy_heatmap(adj_mat, np_points, real_batch_idx, split)
-
-      if self.sparse:
+      
+      if self.sparse and not self.args.sparse_noise:
         np_points = np_points.reshape(1, -1, 2)
 
       #greedy sampling by adding edge to an empty graph until a tour is formeds

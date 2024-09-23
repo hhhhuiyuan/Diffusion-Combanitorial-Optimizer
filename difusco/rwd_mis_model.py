@@ -63,18 +63,22 @@ class Rwd_MISModel(COMetaModel):
     obj = obj * (1.0 + 0.0005 * torch.rand_like(obj.float()))
     
     if self.XE_rwd_cond == 'E':
-      mis_obj = obj.view(-1)
+      mis_obj = obj
+      if self.guidance:
+        rwd_mask = torch.bernoulli(0.1 * torch.ones_like(mis_obj).to(node_labels.device))
+        mis_obj = torch.cat((mis_obj, rwd_mask), dim=1)
       mis_obj = mis_obj.repeat_interleave(edge_count, dim=0)
-      mis_obj = mis_obj.view(-1, 1)
-
+     
     else:
       mis_obj = obj.view(-1)
       mis_obj = mis_obj.repeat_interleave(point_indicator.reshape(-1), dim=0)
       mis_obj = mis_obj.view(-1, 1)
+      if self.guidance:
+        raise NotImplementedError
     
-    if self.guidance:
-      rwd_mask = torch.bernoulli(0.1 * torch.ones_like(mis_obj).to(node_labels.device))
-      mis_obj = torch.cat((mis_obj, rwd_mask), dim=1)
+    # if self.guidance:
+    #   rwd_mask = torch.bernoulli(0.1 * torch.ones_like(mis_obj).to(node_labels.device))
+    #   mis_obj = torch.cat((mis_obj, rwd_mask), dim=1)
     
     # Sample from diffusion
     node_labels_onehot = F.one_hot(node_labels.long(), num_classes=2).float()
