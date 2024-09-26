@@ -89,8 +89,11 @@ def arg_parser():
   parser.add_argument('--debug', action='store_true')
   parser.add_argument('--grad_accumulation', type=int, default=1)
   parser.add_argument('--model', type=str, default='gnn')
+  
+  parser.add_argument('--inference_target_factor', type=float, default=1.0)
   parser.add_argument('--flp_target_factor', type=float, default=1.0) #set to 0 for searching over [0,1] with increment 0.1
   parser.add_argument('--dag_target_factor', type=float, default=0) #set to 0 for searching over [0,1] with increment 0.1
+  
   parser.add_argument('--dag_decode_factor', type=float, default=0.5) #set to int specifying number of nodes to add
   parser.add_argument('--vrp_decode_factor', type=int, default=5) #set int specifying number of nodes to add
   parser.add_argument('--hetero_sizes', action='store_true')

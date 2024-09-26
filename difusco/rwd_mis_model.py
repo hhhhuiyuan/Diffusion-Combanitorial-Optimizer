@@ -238,10 +238,12 @@ class Rwd_MISModel(COMetaModel):
     split_indices = np.cumsum(size_indicator)[:-1]
     edge_count = torch.bincount(graph_data.batch[graph_data.edge_index[0]])
     
+    slu_cost_dict = {}
+    opt_gap_dict = {}
+    
     if self.args.weighted:
       split_weights = np.split(weights.view(-1).cpu().numpy(), split_indices)
 
-    stacked_predict_labels = []
     edge_index = edge_index.to(node_labels.device).reshape(2, -1)
     edge_index_np = edge_index.cpu().numpy()
     adj_mat = scipy.sparse.coo_matrix(
@@ -269,63 +271,84 @@ class Rwd_MISModel(COMetaModel):
       time_schedule = InferenceSchedule(inference_schedule=self.args.inference_schedule,
                                         T=self.diffusion.T, inference_T=steps)
 
-      target = ref_objective.float()
+      avg_ref_obj = torch.mean(ref_objective.float().view(-1).cpu()) 
       
-      if self.XE_rwd_cond == 'E':
-        target = target.view(-1)
-        target = target.repeat_interleave(edge_count, dim=0)
-        target = target.view(-1, 1)
-
+      if self.args.inference_target_factor:
+      # tuning parameter target, set to be self.args.dag_target_factor * mis-obj
+        target_facotrs = [self.args.inference_target_factor] 
       else:
-        target = target.view(-1)
-        target = target.repeat_interleave(size_indicator.reshape(-1), dim=0)
-        target = target.view(-1, 1)
+      # search tuning parameter target from (0.8 -1.5) * mis-obj incremented by 0.1
+        target_facotrs = [round(1.0 + 0.1 * float(i), 2) for i in range(-2, 6, 1)]
       
-      if self.args.weighted:
-        weights = weights.view(1, -1).squeeze(0)
-      
-      for i in range(steps):
-        t1, t2 = time_schedule(i)
-        t1 = np.array([t1 for _ in range(batch_size)]).astype(int)
-        t2 = np.array([t2 for _ in range(batch_size)]).astype(int)
-
-        if self.args.weighted:
-          xt = torch.stack((weights, xt), dim=1)
+      for factor in target_facotrs:
+        target = ref_objective.float() * factor
+        stacked_predict_labels = []
         
-        if self.diffusion_type == 'gaussian':
-          raise NotImplementedError
-          # xt = self.gaussian_denoise_step(
-          #     xt, t1, device, edge_index, target_t=t2)
+        if self.XE_rwd_cond == 'E':
+          target = target.view(-1)
+          target = target.repeat_interleave(edge_count, dim=0)
+          target = target.view(-1, 1)
+
         else:
-          xt = self.categorical_denoise_step(
-              xt, t1, device, target, edge_index, target_t=t2)
+          target = target.view(-1)
+          target = target.repeat_interleave(size_indicator.reshape(-1), dim=0)
+          target = target.view(-1, 1)
+        
+        if self.args.weighted:
+          weights = weights.view(1, -1).squeeze(0)
+        
+        for i in range(steps):
+          t1, t2 = time_schedule(i)
+          t1 = np.array([t1 for _ in range(batch_size)]).astype(int)
+          t2 = np.array([t2 for _ in range(batch_size)]).astype(int)
 
-      if self.diffusion_type == 'gaussian':
-        predict_labels = xt.float().cpu().detach().numpy() * 0.5 + 0.5
-      else:
-        predict_labels = xt.float().cpu().detach().numpy() + 1e-6
+          if self.args.weighted:
+            xt = torch.stack((weights, xt), dim=1)
+          
+          if self.diffusion_type == 'gaussian':
+            raise NotImplementedError
+            # xt = self.gaussian_denoise_step(
+            #     xt, t1, device, edge_index, target_t=t2)
+          else:
+            xt = self.categorical_denoise_step(
+                xt, t1, device, target, edge_index, target_t=t2)
+
+        if self.diffusion_type == 'gaussian':
+          predict_labels = xt.float().cpu().detach().numpy() * 0.5 + 0.5
+        else:
+          predict_labels = xt.float().cpu().detach().numpy() + 1e-6
+        
+        predict_labels = np.split(predict_labels, split_indices)
+        stacked_predict_labels.extend(predict_labels)
+
+        solved_solutions = [mis_decode_np(predict_labels, adj_mat) for predict_labels, adj_mat in zip(stacked_predict_labels, split_adj_mats)]
+        solved_solutions = [torch.from_numpy(solution) for solution in solved_solutions]
+        
+        if self.args.weighted:
+          solved_costs = [torch.dot(solved_solutions[i], torch.from_numpy(split_weights[i])) for i in range(len(solved_solutions))]
+        else:
+          solved_costs = [solved_solution.sum() for solved_solution in solved_solutions]
+        
+        avg_solved_cost = torch.mean(torch.stack(solved_costs).float())
+        slu_cost_dict[factor] = avg_solved_cost
+        opt_gap_dict[factor] = avg_ref_obj - avg_solved_cost
       
-      predict_labels = np.split(predict_labels, split_indices)
-      stacked_predict_labels.extend(predict_labels)
-
-    solved_solutions = [mis_decode_np(predict_labels, adj_mat) for predict_labels, adj_mat in zip(stacked_predict_labels, split_adj_mats)]
-    solved_solutions = [torch.from_numpy(solution) for solution in solved_solutions]
-    
-    if self.args.weighted:
-      solved_costs = [torch.dot(solved_solutions[i], torch.from_numpy(split_weights[i])) for i in range(len(solved_solutions))]
-    else:
-      solved_costs = [solved_solution.sum() for solved_solution in solved_solutions]
-    
-    ref_objective = torch.mean(ref_objective.float().view(-1).cpu())
-    avg_solved_cost = torch.mean(torch.stack(solved_costs).float())
+    subopt_gap = min(opt_gap for opt_gap in opt_gap_dict.values())  
 
     metrics = {
-        f"{split}/gt_cost": ref_objective,
-        f"{split}/solved_cost": avg_solved_cost,
-        f"{split}/subopt_gap": ref_objective - avg_solved_cost,
+        f"{split}/gt_cost": avg_ref_obj,
+        f"{split}/solved_cost": slu_cost_dict,
+        f"{split}/subopt_gap_target": opt_gap_dict,
+        f"{split}/subopt_gap": subopt_gap,
     }
+      
     for k, v in metrics.items():
-      self.log(k, v, on_step=True, sync_dist=True, batch_size=batch_size)
+      if type(v) == dict:
+        for tar, v_tar in v.items():
+          self.log(f"{k}_{tar}", v_tar, sync_dist=True)
+      else:
+        self.log(k, v, sync_dist=True)
+    return
     
     return metrics
 
