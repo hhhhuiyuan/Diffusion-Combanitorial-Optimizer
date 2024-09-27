@@ -109,6 +109,7 @@ def arg_parser():
   parser.add_argument('--guidance', type=float, default=0, help='strength of classifier free guidance, 0 if no guidance')
   parser.add_argument('--tsp_use_edge', action='store_true')
   parser.add_argument('--dynamic_mask', action='store_true')
+  parser.add_argument('--held_out_ratio', type=float, default=0.1)
   
   args = parser.parse_args()
   return args

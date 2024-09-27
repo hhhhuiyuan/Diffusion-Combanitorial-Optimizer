@@ -333,11 +333,12 @@ class TSPModel(COMetaModel):
       if self.sparse and not self.args.sparse_noise:
         np_points = np_points.reshape(1, -1, 2)
 
+      sparse_split = self.sparse and not self.args.sparse_noise
       #greedy sampling by adding edge to an empty graph until a tour is formeds
       tours, merge_iterations = merge_tours(
           adj_mat, np_points, np_edge_index,
           sparse_graph= self.sparse and not self.args.sparse_noise,
-          parallel_sampling=self.args.val_batch_size,
+          parallel_sampling=self.args.val_batch_size if sparse_split else np_points.shape[0],
       )
 
       # Refine using 2-opt

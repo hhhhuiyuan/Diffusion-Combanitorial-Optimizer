@@ -69,7 +69,8 @@ class AddEdge_DAGModel(COMetaModel):
     device = order_mats.device
     
     if self.guidance:
-      rwd_mask = torch.bernoulli(0.1 * torch.ones_like(makespans).to(device))
+      mask_ratio = self.args.held_out_ratio
+      rwd_mask = torch.bernoulli(mask_ratio * torch.ones_like(makespans).to(device))
       makespans = torch.cat((makespans, rwd_mask), dim=1)
     
     # Denoise
@@ -241,11 +242,11 @@ class AddEdge_DAGModel(COMetaModel):
       # wandb.log({k: v})
     return
 
-  def on_test_epoch_end(self):
-    avg_gt_cost, avg_pred_cost, avg_gap = self.test_metrics.compute()
-    self.print(f"--Test Avg GT Cost: {avg_gt_cost},"\
-             f"--Test Avg Pred Cost: {avg_pred_cost},"\
-             f"--Test Avg Gap: {avg_gap}.")
+  # def on_test_epoch_end(self):
+  #   avg_gt_cost, avg_pred_cost, avg_gap = self.test_metrics.compute()
+  #   self.print(f"--Test Avg GT Cost: {avg_gt_cost},"\
+  #            f"--Test Avg Pred Cost: {avg_pred_cost},"\
+  #            f"--Test Avg Gap: {avg_gap}.")
 
   def on_validation_epoch_start(self) -> None:
     self.print("Starting validate...")
