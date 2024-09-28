@@ -84,7 +84,8 @@ class Rwd_TSPModel(COMetaModel):
       time_cost = time_cost.reshape(-1, 1).repeat(1, adj_matrix.shape[1]).reshape(-1,1)
       
       if self.guidance:
-        rwd_mask = torch.bernoulli(0.1 * torch.ones(point_indicator.shape[0]).to(adj_matrix.device))
+        mask_ratio = self.args.held_out_ratio
+        rwd_mask = torch.bernoulli(mask_ratio * torch.ones(point_indicator.shape[0]).to(adj_matrix.device))
         rwd_mask = rwd_mask.reshape(-1, 1).repeat(1, adj_matrix.shape[1]).reshape(-1,1)
         time_cost = torch.cat((time_cost, rwd_mask), dim=1).contiguous()
       
