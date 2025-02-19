@@ -9,7 +9,7 @@ import numpy as np
 import tqdm
 import tsplib95
 from concorde.tsp import TSPSolver  # https://github.com/jvkersch/pyconcorde
-from difusco.utils.tsp_utils import TSPEvaluator
+from rodis.utils.tsp_utils import TSPEvaluator
 
 warnings.filterwarnings("ignore")
 

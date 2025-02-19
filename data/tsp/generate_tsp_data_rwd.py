@@ -8,10 +8,10 @@ from multiprocessing import Pool
 
 import numpy as np
 from concorde.tsp import TSPSolver  # https://github.com/jvkersch/pyconcorde
-from difusco.heuristics import solve_w_heuristics
+from rodis.heuristics import solve_w_heuristics
 from scipy.spatial.distance import cdist
-from difusco.utils.tsp_algorithms import get_lower_adj_matrix
-from difusco.utils.tsp_utils import TSPEvaluator
+from rodis.utils.tsp_algorithms import get_lower_adj_matrix
+from rodis.utils.tsp_utils import TSPEvaluator
 from tqdm import tqdm
 from functools import partial
 
