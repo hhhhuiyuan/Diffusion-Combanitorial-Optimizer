@@ -1,4 +1,4 @@
-[submodule "data/mis-benchmark-framework"]
-	path = data/mis-benchmark-framework
+[submodule "data_generation/mis-benchmark-framework"]
+	path = data_generation/mis-benchmark-framework
 	url = https://github.com/hhhhuiyuan/mis-benchmark-framework.git
 	branch = main
