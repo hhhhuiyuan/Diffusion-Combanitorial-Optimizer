@@ -220,7 +220,8 @@ class Rwd_TSPModel(COMetaModel):
     if not self.sparse:
       real_batch_idx, points, adj_matrix, gt_tour, gt_cost = batch
       np_points = points.cpu().numpy()
-      target = gt_cost
+      #target = gt_cost
+      #target = gt_cost.mean().repeat(gt_cost.shape[0]).reshape(-1,1)
     else:
       real_batch_idx, graph_data, point_indicator, edge_indicator, gt_tour, gt_cost = batch
       route_edge_flags = graph_data.edge_attr
@@ -236,7 +237,10 @@ class Rwd_TSPModel(COMetaModel):
       edge_count = torch.bincount(graph_data.batch[graph_data.edge_index[0]])
       gt_cost = gt_cost.repeat_interleave(edge_count, dim=0)
       target = gt_cost
-      
+    
+    slu_cost_dict = {}  
+    opt_gap_dict = {}
+    avg_gt_cost = torch.mean(gt_cost.cpu().reshape(-1))
 
     # stacked_tours = []
 
@@ -244,7 +248,15 @@ class Rwd_TSPModel(COMetaModel):
     #   if not self.sparse:
     #     points = points.repeat(self.args.parallel_sampling, 1, 1)
      
-    for _ in range(self.args.sequential_sampling):
+    if self.args.inference_target_factor:
+      # tuning parameter target, set to be self.args.dag_target_factor * mis-obj
+        target_facotrs = [self.args.inference_target_factor] 
+    else:
+    # search tuning parameter target from (0.8 -1.5) * mis-obj incremented by 0.1
+      target_facotrs = [round(1.0 + 0.1 * float(i), 2) for i in range(-6, 2, 1)]
+    
+    for factor in target_facotrs:
+      target = factor * gt_cost.mean().repeat(gt_cost.shape[0]).reshape(-1,1)
       xt = torch.randn_like(adj_matrix.float())
       # if self.args.parallel_sampling > 1:
       #   if not self.sparse:
@@ -308,16 +320,18 @@ class Rwd_TSPModel(COMetaModel):
       else:
         solved_tours = tours
       
-      #stacked_tours.append(solved_tours)
+      all_solved_costs = [torch.tensor(TSPEvaluator(np_points[i]).evaluate(solved_tours[i])) for i in range(len(solved_tours))]
+      avg_solved_cost = torch.mean(torch.stack(all_solved_costs).float())
+      slu_cost_dict[factor] = avg_solved_cost 
+      opt_gap_dict[factor] =  avg_solved_cost - avg_gt_cost
     
-    all_solved_costs = [TSPEvaluator(np_points[i]).evaluate(solved_tours[i]) for i in range(len(solved_tours))]
-    avg_solved_cost = torch.tensor(sum(all_solved_costs)/len(all_solved_costs))
-    avg_gt_cost = torch.mean(gt_cost.cpu().reshape(-1))
+    subopt_gap = min(opt_gap for opt_gap in opt_gap_dict.values())  
     
     metrics = {
           f"{split}/gt_cost": avg_gt_cost,
-          f"{split}/solved_cost": avg_solved_cost,
-          f"{split}/subopt_gap": avg_solved_cost - avg_gt_cost,
+          f"{split}/solved_cost": slu_cost_dict,
+          f"{split}/subopt_gap": opt_gap_dict,
+          f"{split}/subopt_gap": subopt_gap,
       }
     if self.args.refine:
       other_metrics = {
@@ -328,8 +342,6 @@ class Rwd_TSPModel(COMetaModel):
       other_metrics = {
             f"{split}/merge_iterations": merge_iterations,
         } 
-    for k, v in other_metrics.items():
-      self.log(k, v, on_epoch=True, sync_dist=True)
     
     return metrics
   
@@ -455,7 +467,11 @@ class Rwd_TSPModel(COMetaModel):
     
     # (self.test_metrics if split=='test' else self.val_metrics).update(metrics)
     for k, v in metrics.items():
-      self.log(k, v, on_step=True, sync_dist=True)
+     if type(v) == dict:
+       for tar, v_tar in v.items():
+         self.log(f"{k}_{tar}", v_tar, sync_dist=True)
+     else:
+       self.log(k, v, sync_dist=True)
     
     return metrics
 

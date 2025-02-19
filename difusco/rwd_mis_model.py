@@ -281,7 +281,8 @@ class Rwd_MISModel(COMetaModel):
         target_facotrs = [round(1.0 + 0.1 * float(i), 2) for i in range(-2, 6, 1)]
       
       for factor in target_facotrs:
-        target = ref_objective.float() * factor
+        #target = ref_objective.float() * factor
+        target = avg_ref_obj.to(ref_objective.device) * torch.ones_like(ref_objective) * factor
         stacked_predict_labels = []
         
         if self.XE_rwd_cond == 'E':
@@ -348,8 +349,6 @@ class Rwd_MISModel(COMetaModel):
           self.log(f"{k}_{tar}", v_tar, sync_dist=True)
       else:
         self.log(k, v, sync_dist=True)
-    return
-    
     return metrics
 
   def validation_step(self, batch, batch_idx):
